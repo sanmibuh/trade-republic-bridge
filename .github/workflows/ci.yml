@@ -1,0 +1,246 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false || github.event_name == 'push'
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Check lint
+        run: ruff check .
+
+      - name: Check formatting
+        run: ruff format --check .
+
+  test:
+    needs: lint
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false || github.event_name == 'push'
+    concurrency:
+      group: ci-comment-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: true
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Run tests with coverage
+        id: tests
+        run: |
+          python -m pytest --cov=app --cov-fail-under=97 \
+            --cov-report=term-missing \
+            --cov-report=json 2>&1 | tee test-output.txt
+          python -m json.tool coverage.json > coverage.pretty.json && mv coverage.pretty.json coverage.json
+          echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+
+      - name: Extract metrics
+        id: metrics
+        run: |
+          PASSED_COUNT=$(grep -oP '\d+(?= passed)' test-output.txt || echo "0")
+          FAILED_COUNT=$(grep -oP '\d+(?= failed)' test-output.txt || echo "0")
+          TOTAL_COV=$(python -c "import json; d=json.load(open('coverage.json')); print(d['totals']['percent_covered_display'])")
+          COVERED_LINES=$(python -c "import json; d=json.load(open('coverage.json')); print(d['totals']['covered_lines'])")
+          TOTAL_LINES=$(python -c "import json; d=json.load(open('coverage.json')); print(d['totals']['num_statements'])")
+          echo "passed=${PASSED_COUNT}" >> "$GITHUB_OUTPUT"
+          echo "failed=${FAILED_COUNT}" >> "$GITHUB_OUTPUT"
+          echo "coverage=${TOTAL_COV}" >> "$GITHUB_OUTPUT"
+          echo "covered=${COVERED_LINES}" >> "$GITHUB_OUTPUT"
+          echo "lines=${TOTAL_LINES}" >> "$GITHUB_OUTPUT"
+
+      # ── On merge to main: save ci-stats.json to ci-data branch ──────────────
+
+      - name: Save stats to ci-data
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          PASSED_COUNT="${{ steps.metrics.outputs.passed }}"
+          python -c "
+          import json
+          t = json.load(open('coverage.json'))['totals']
+          stats = {
+              'percent': t['percent_covered_display'],
+              'covered_lines': t['covered_lines'],
+              'num_statements': t['num_statements'],
+              'tests_passed': int('${PASSED_COUNT}'),
+          }
+          json.dump(stats, open('/tmp/ci-stats.json', 'w'), indent=2)
+          "
+
+          if git ls-remote --exit-code --heads origin ci-data; then
+            git fetch origin ci-data
+            git checkout ci-data
+          else
+            git checkout --orphan ci-data
+            git rm -rf . --quiet || true
+          fi
+
+          cp /tmp/ci-stats.json ./ci-stats.json
+          git add ci-stats.json
+          git diff --cached --quiet || git commit -m "chore: update ci-stats from main@${{ github.sha }}"
+
+          for i in 1 2 3; do
+            git push origin ci-data && break
+            [ "$i" -lt 3 ] && git pull --rebase origin ci-data || exit 1
+          done
+
+      # ── On PR: compare with main stats and post comment ──────────────────────
+
+      - name: Fetch main stats from ci-data
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch origin ci-data
+          git show origin/ci-data:ci-stats.json > main-ci-stats.json 2>/dev/null || echo '{}' > main-ci-stats.json
+
+      - name: Post coverage comment
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_COV="${{ steps.metrics.outputs.coverage }}"
+          PR_COVERED="${{ steps.metrics.outputs.covered }}"
+          PR_LINES="${{ steps.metrics.outputs.lines }}"
+          PR_PASSED="${{ steps.metrics.outputs.passed }}"
+          PR_FAILED="${{ steps.metrics.outputs.failed }}"
+          EXIT_CODE="${{ steps.tests.outputs.exit_code }}"
+
+          MAIN_COV=$(python -c "
+          import json
+          try:
+              d = json.load(open('main-ci-stats.json'))
+              print(d.get('percent', 'N/A'))
+          except Exception:
+              print('N/A')
+          ")
+          MAIN_COVERED=$(python -c "
+          import json
+          try:
+              d = json.load(open('main-ci-stats.json'))
+              print(d.get('covered_lines', 'N/A'))
+          except Exception:
+              print('N/A')
+          ")
+          MAIN_LINES=$(python -c "
+          import json
+          try:
+              d = json.load(open('main-ci-stats.json'))
+              print(d.get('num_statements', 'N/A'))
+          except Exception:
+              print('N/A')
+          ")
+          MAIN_PASSED=$(python -c "
+          import json
+          try:
+              d = json.load(open('main-ci-stats.json'))
+              print(d.get('tests_passed', 'N/A'))
+          except Exception:
+              print('N/A')
+          ")
+
+          COV_DIFF=$(python -c "
+          try:
+              diff = float('${PR_COV}') - float('${MAIN_COV}')
+              sign = '+' if diff >= 0 else ''
+              print(f' ({sign}{diff:.1f}%)')
+          except Exception:
+              print('')
+          ")
+          LINES_DIFF=$(python -c "
+          try:
+              diff = int('${PR_LINES}') - int('${MAIN_LINES}')
+              sign = '+' if diff >= 0 else ''
+              pct = diff / int('${MAIN_LINES}') * 100 if int('${MAIN_LINES}') else 0
+              psign = '+' if pct >= 0 else ''
+              print(f' ({sign}{diff}, {psign}{pct:.1f}%)')
+          except Exception:
+              print('')
+          ")
+          TESTS_DIFF=$(python -c "
+          try:
+              diff = int('${PR_PASSED}') - int('${MAIN_PASSED}')
+              sign = '+' if diff >= 0 else ''
+              print(f' ({sign}{diff})')
+          except Exception:
+              print('')
+          ")
+
+          if [ "$EXIT_CODE" = "0" ]; then
+            STATUS="✅ All checks passed"
+          else
+            STATUS="❌ Checks failed"
+          fi
+
+          TABLE_ROWS="| ✅ Tests passed | ${PR_PASSED}${TESTS_DIFF} | ${MAIN_PASSED} |"
+          if [ "$PR_FAILED" != "0" ]; then
+            TABLE_ROWS="${TABLE_ROWS}
+          | ❌ Failed | ${PR_FAILED} | — |"
+          fi
+          TABLE_ROWS="${TABLE_ROWS}
+          | 📊 Coverage | ${PR_COV}%${COV_DIFF} | ${MAIN_COV}% |
+          | 📝 Lines covered | ${PR_COVERED} / ${PR_LINES}${LINES_DIFF} | ${MAIN_COVERED} / ${MAIN_LINES} |"
+
+          BODY="## CI Results
+
+          $STATUS
+
+          | Metric | PR | main |
+          |---|---|---|
+          ${TABLE_ROWS}
+
+          <details>
+          <summary>Coverage detail</summary>
+
+          \`\`\`
+          $(grep -A 9999 'Name' test-output.txt | grep -v '^$' | head -40)
+          \`\`\`
+
+          </details>
+
+          <!-- ci-results-comment -->"
+
+          COMMENT_IDS=$(gh api --paginate \
+            "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" \
+            --jq '[.[] | select(.body | contains("<!-- ci-results-comment -->")) | .id][]')
+
+          for id in $COMMENT_IDS; do
+            gh api --method DELETE \
+              "repos/${{ github.repository }}/issues/comments/${id}"
+          done
+
+          gh pr comment "${{ github.event.pull_request.number }}" --body "$BODY"
