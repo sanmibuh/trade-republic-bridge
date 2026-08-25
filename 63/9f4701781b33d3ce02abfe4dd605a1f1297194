@@ -1,0 +1,28 @@
+.github/workflows/ci.yml
+  h_35ce34583c4794 1-246
+.gitignore
+  h_35ce34583c4794 6-31
+Makefile
+  h_35ce34583c4794 1-39
+app/__init__.py
+  h_35ce34583c4794 1
+pyproject.toml
+  h_35ce34583c4794 1-32
+requirements-dev.txt
+  h_35ce34583c4794 1-6
+requirements.txt
+  h_35ce34583c4794 1-4
+tests/test_placeholder.py
+  h_35ce34583c4794 1-6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "639f4701781b33d3ce02abfe4dd605a1f1297194",
+  "prompts": {},
+  "humans": {
+    "h_35ce34583c4794": {
+      "author": "David Belmez <sanmibuh@gmail.com>"
+    }
+  }
+}
