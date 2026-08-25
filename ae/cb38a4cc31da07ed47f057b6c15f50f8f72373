@@ -1,0 +1,20 @@
+.gitignore
+  h_35ce34583c4794 1-5
+AGENTS.md
+  h_35ce34583c4794 1-97
+ARCHITECTURE.md
+  h_35ce34583c4794 1-165
+README.md
+  h_35ce34583c4794 1-246
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "aecb38a4cc31da07ed47f057b6c15f50f8f72373",
+  "prompts": {},
+  "humans": {
+    "h_35ce34583c4794": {
+      "author": "David Belmez <sanmibuh@gmail.com>"
+    }
+  }
+}
