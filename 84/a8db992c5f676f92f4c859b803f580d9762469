@@ -1,0 +1,19 @@
+ci-stats.json
+  s_f60c663f6a6f0a::t_93a168943fddae 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "84a8db992c5f676f92f4c859b803f580d9762469",
+  "prompts": {},
+  "sessions": {
+    "s_f60c663f6a6f0a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fc519a808ffeCVlereIQADjV2y",
+        "model": "claude-sonnet-4.6"
+      },
+      "human_author": "David Belmez <sanmibuh@gmail.com>"
+    }
+  }
+}
