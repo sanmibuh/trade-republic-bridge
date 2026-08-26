@@ -1,0 +1,14 @@
+README.md
+  h_35ce34583c4794 24,28-37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "2cca8ad87f9ace735a2c0bc1bcde15ad28aa4921",
+  "prompts": {},
+  "humans": {
+    "h_35ce34583c4794": {
+      "author": "David Belmez <sanmibuh@gmail.com>"
+    }
+  }
+}
