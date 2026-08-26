@@ -57,9 +57,19 @@ class TestUnhandledExceptionHandler:
         assert body["status"] == 500
 
 
+def _make_http_exception_app() -> FastAPI:
+    """Dedicated app with only the HTTP exception handler — no lifespan."""
+    test_app = FastAPI()
+    test_app.add_exception_handler(HTTPException, _http_exception_handler)
+    return test_app
+
+
 class TestHttpExceptionHandler:
     def test_http_exception_returns_problem_json(self) -> None:
-        client = TestClient(app, raise_server_exceptions=False)
+        # Use a dedicated app to avoid triggering the lifespan (which requires
+        # /data/config.yml) and to keep this test focused on handler behaviour.
+        test_app = _make_http_exception_app()
+        client = TestClient(test_app, raise_server_exceptions=False)
         resp = client.get("/does-not-exist")
 
         assert resp.status_code == 404
@@ -69,13 +79,12 @@ class TestHttpExceptionHandler:
         assert "code" in body
 
     def test_http_exception_detail_is_preserved(self) -> None:
-        test_app = FastAPI()
+        test_app = _make_http_exception_app()
 
         @test_app.get("/_test_403")
         async def _forbidden():
             raise HTTPException(status_code=403, detail="Forbidden resource")
 
-        test_app.add_exception_handler(HTTPException, _http_exception_handler)
         client = TestClient(test_app, raise_server_exceptions=False)
         resp = client.get("/_test_403")
 
