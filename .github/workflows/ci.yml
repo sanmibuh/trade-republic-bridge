@@ -78,9 +78,15 @@ jobs:
         run: |
           PASSED_COUNT=$(grep -oP '\d+(?= passed)' test-output.txt || echo "0")
           FAILED_COUNT=$(grep -oP '\d+(?= failed)' test-output.txt || echo "0")
-          TOTAL_COV=$(python -c "import json; d=json.load(open('coverage.json')); print(d['totals']['percent_covered_display'])")
-          COVERED_LINES=$(python -c "import json; d=json.load(open('coverage.json')); print(d['totals']['covered_lines'])")
-          TOTAL_LINES=$(python -c "import json; d=json.load(open('coverage.json')); print(d['totals']['num_statements'])")
+          if [ -f coverage.json ]; then
+            TOTAL_COV=$(python -c "import json; d=json.load(open('coverage.json')); print(d['totals']['percent_covered_display'])")
+            COVERED_LINES=$(python -c "import json; d=json.load(open('coverage.json')); print(d['totals']['covered_lines'])")
+            TOTAL_LINES=$(python -c "import json; d=json.load(open('coverage.json')); print(d['totals']['num_statements'])")
+          else
+            TOTAL_COV="N/A"
+            COVERED_LINES="N/A"
+            TOTAL_LINES="N/A"
+          fi
           echo "passed=${PASSED_COUNT}" >> "$GITHUB_OUTPUT"
           echo "failed=${FAILED_COUNT}" >> "$GITHUB_OUTPUT"
           echo "coverage=${TOTAL_COV}" >> "$GITHUB_OUTPUT"

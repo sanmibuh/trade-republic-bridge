@@ -135,9 +135,7 @@ class Config:
     def _require_instance_field(item: dict, key: str) -> str:
         value = item.get(key, "")
         if not isinstance(value, str) or not value.strip():
-            raise ConfigError(
-                f"Each instance must have a non-empty {key!r} field; got: {item!r}"
-            )
+            raise ConfigError(f"Each instance must have a non-empty {key!r} field")
         return value.strip()
 
     @staticmethod

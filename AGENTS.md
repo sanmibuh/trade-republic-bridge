@@ -28,6 +28,15 @@ mapping logic. All of that belongs in downstream consumers.
   [Conventional Commits](https://www.conventionalcommits.org/es/v1.0.0-beta.2/)
   (`type(scope): description`). Common types: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`.
 
+### Code review comments
+- **Evaluate before acting.** When a reviewer raises a concern, first assess whether it is
+  technically correct and relevant to this project's context. Not every comment warrants a change.
+- If a comment conflicts with an explicit design decision (e.g. Docker-only distribution,
+  no PyPI packaging), explain the rationale and push back rather than blindly applying the change.
+- If a comment is valid, apply it. If it is partially valid, apply the valid part and explain
+  the rest. If it is incorrect or out of scope, say so clearly.
+- Never implement a change just to satisfy a reviewer if you have a sound technical reason not to.
+
 ### TDD — tests first, always
 1. Write the test and watch it fail before writing any implementation.
 2. Implement the minimum code to make it pass.

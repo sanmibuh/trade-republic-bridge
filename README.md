@@ -29,7 +29,7 @@ docker run -d \
 ### Running locally
 
 ```bash
-pip install tr-bridge
+pip install -r requirements-dev.txt
 uvicorn tr_bridge.main:app --port 8000
 ```
 

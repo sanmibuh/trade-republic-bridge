@@ -56,8 +56,8 @@ The data root is always `/data` inside the container. Its actual location on the
 entirely by the Docker volume mount — there is no config option for it, because it would be
 redundant: operators always decide the mount point from outside the container.
 
-Each instance maps to a single Trade Republic account. Instances are configured at startup via `TR_INSTANCES`
-(comma-separated names) and are addressed in every endpoint via a `{name}` path segment:
+Each instance maps to a single Trade Republic account. Instances are defined in `/data/config.yml`
+under the `instances` key and are addressed in every endpoint via a `{name}` path segment:
 
 ```
 /instances/{name}/status
