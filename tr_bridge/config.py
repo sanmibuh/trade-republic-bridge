@@ -94,7 +94,8 @@ class Config:
         data = yaml.safe_load(text)
         if not isinstance(data, dict):
             raise ConfigError(
-                f"Config file must be a YAML mapping at the top level; got: {type(data).__name__}"
+                "Config file must be a YAML mapping at the top level; "
+                f"got: {type(data).__name__}"
             )
         return data
 

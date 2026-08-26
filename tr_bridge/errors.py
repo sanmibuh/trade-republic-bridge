@@ -26,7 +26,7 @@ class ProblemDetail(BaseModel):
 
 
 def problem_response(detail: ProblemDetail) -> Response:
-    """Return a Starlette ``Response`` with ``application/problem+json`` content type."""
+    """Return a Starlette ``Response`` with ``application/problem+json`` content."""
     return Response(
         content=json.dumps(detail.model_dump()),
         status_code=detail.status,

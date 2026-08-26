@@ -1,21 +1,7 @@
-[build-system]
-requires = ["setuptools>=64"]
-build-backend = "setuptools.backends.legacy:build"
-
 [project]
 name = "tr-bridge"
 dynamic = ["version"]
 requires-python = ">=3.11"
-dependencies = [
-    "fastapi==0.141.1",
-    "uvicorn[standard]==0.52.4",
-    "pydantic==2.13.4",
-    "pytr==0.4.10",
-    "pyyaml==6.0.3",
-]
-
-[project.scripts]
-tr-bridge = "tr_bridge.main:start"
 
 [tool.setuptools.dynamic]
 version = {file = "VERSION"}
@@ -36,9 +22,7 @@ select = [
     "SIM", # flake8-simplify
     "RUF", # ruff-specific rules
 ]
-ignore = [
-    "E501", # line too long — handled by formatter
-]
+ignore = []
 
 [tool.ruff.lint.isort]
 combine-as-imports = true
