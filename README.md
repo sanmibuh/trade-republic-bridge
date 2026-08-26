@@ -21,9 +21,18 @@ it only wraps pytr.
 docker run -d \
   --name tr-bridge \
   -p 8000:8000 \
-  -v /path/to/config.yml:/data/config.yml \
-  -v /path/to/sessions:/data \
+  -v /path/to/data:/data \
   ghcr.io/sanmibuh/tr-bridge:latest
+```
+
+The host directory `/path/to/data` must contain `config.yml`. Session files are written there
+automatically under `tr_session_{name}/` subdirectories.
+
+```
+/path/to/data/
+  config.yml           ← your config file
+  tr_session_user1/    ← created automatically on first login
+  tr_session_user2/
 ```
 
 ### Running locally
