@@ -5,10 +5,17 @@ from unittest.mock import patch
 
 import pytest
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
 from fastapi.testclient import TestClient
+from starlette.exceptions import HTTPException
 
 import tr_bridge.main as main_module
-from tr_bridge.main import _unhandled_exception_handler, app
+from tr_bridge.main import (
+    _http_exception_handler,
+    _request_validation_error_handler,
+    _unhandled_exception_handler,
+    app,
+)
 
 
 class TestUnhandledExceptionHandler:
@@ -29,6 +36,56 @@ class TestUnhandledExceptionHandler:
         body = resp.json()
         assert body["code"] == "internal_error"
         assert body["status"] == 500
+
+
+class TestHttpExceptionHandler:
+    def test_http_exception_returns_problem_json(self) -> None:
+        client = TestClient(app, raise_server_exceptions=False)
+        resp = client.get("/does-not-exist")
+
+        assert resp.status_code == 404
+        assert resp.headers["content-type"] == "application/problem+json"
+        body = resp.json()
+        assert body["status"] == 404
+        assert "code" in body
+
+    def test_http_exception_detail_is_preserved(self) -> None:
+        test_app = FastAPI()
+
+        @test_app.get("/_test_403")
+        async def _forbidden():
+            raise HTTPException(status_code=403, detail="Forbidden resource")
+
+        test_app.add_exception_handler(HTTPException, _http_exception_handler)
+        client = TestClient(test_app, raise_server_exceptions=False)
+        resp = client.get("/_test_403")
+
+        assert resp.status_code == 403
+        assert resp.headers["content-type"] == "application/problem+json"
+        body = resp.json()
+        assert body["status"] == 403
+        assert body["detail"] == "Forbidden resource"
+
+
+class TestRequestValidationErrorHandler:
+    def test_validation_error_returns_422_problem_json(self) -> None:
+        test_app = FastAPI()
+
+        @test_app.get("/items/{item_id}")
+        async def _get_item(item_id: int):
+            return {"id": item_id}
+
+        test_app.add_exception_handler(
+            RequestValidationError, _request_validation_error_handler
+        )
+        client = TestClient(test_app, raise_server_exceptions=False)
+        resp = client.get("/items/not-an-int")
+
+        assert resp.status_code == 422
+        assert resp.headers["content-type"] == "application/problem+json"
+        body = resp.json()
+        assert body["status"] == 422
+        assert "code" in body
 
 
 class TestVersionReading:

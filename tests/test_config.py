@@ -129,6 +129,13 @@ class TestYamlTopLevelType:
         with pytest.raises(ConfigError, match="mapping"):
             Config.from_file(path)
 
+    def test_malformed_yaml_raises_config_error(self, tmp_path) -> None:
+        path = str(tmp_path / "config.yml")
+        (tmp_path / "config.yml").write_text("key: [unclosed\n")
+
+        with pytest.raises(ConfigError, match=r"[Ii]nvalid YAML"):
+            Config.from_file(path)
+
 
 # ---------------------------------------------------------------------------
 # instances must be a list of mappings

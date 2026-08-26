@@ -1,11 +1,14 @@
 """FastAPI application entry point."""
 
 import logging
+from http import HTTPStatus
 from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import Response
+from starlette.exceptions import HTTPException
 
 from tr_bridge.errors import ProblemDetail, problem_response
 
@@ -26,6 +29,36 @@ app = FastAPI(
     version=_read_version(),
     description="Thin HTTP wrapper around pytr for Trade Republic session management.",
 )
+
+
+@app.exception_handler(HTTPException)
+async def _http_exception_handler(request: Request, exc: HTTPException) -> Response:
+    try:
+        phrase = HTTPStatus(exc.status_code).phrase
+    except ValueError:
+        phrase = "HTTP Error"
+    return problem_response(
+        ProblemDetail(
+            status=exc.status_code,
+            code="http_error",
+            title=phrase,
+            detail=str(exc.detail),
+        )
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def _request_validation_error_handler(
+    request: Request, exc: RequestValidationError
+) -> Response:
+    return problem_response(
+        ProblemDetail(
+            status=422,
+            code="validation_error",
+            title="Unprocessable Entity",
+            detail=str(exc),
+        )
+    )
 
 
 @app.exception_handler(Exception)

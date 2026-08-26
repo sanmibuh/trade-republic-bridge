@@ -91,7 +91,10 @@ class Config:
             text = Path(path).read_text()
         except OSError as exc:
             raise ConfigError(f"Config file not found: {path!r}") from exc
-        data = yaml.safe_load(text)
+        try:
+            data = yaml.safe_load(text)
+        except yaml.YAMLError as exc:
+            raise ConfigError(f"Invalid YAML in config file: {exc}") from exc
         if not isinstance(data, dict):
             raise ConfigError(
                 "Config file must be a YAML mapping at the top level; "
