@@ -1,0 +1,19 @@
+tests/test_config.py
+  s_65db0868848489::t_dd59c216127878 1-308
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "d8f1f1798982222d4ae78677e0c860d96ebc7a15",
+  "prompts": {},
+  "sessions": {
+    "s_65db0868848489": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fc5039e14ffeTceGWkfCbMWHY0",
+        "model": "claude-sonnet-4.6"
+      },
+      "human_author": "David Belmez <sanmibuh@gmail.com>"
+    }
+  }
+}
