@@ -60,20 +60,33 @@ jobs:
       - name: Run tests with coverage
         id: tests
         run: |
-          python -m pytest --cov=app --cov-fail-under=97 \
+          set +e
+          python -m pytest --cov=tr_bridge --cov-fail-under=97 \
             --cov-report=term-missing \
             --cov-report=json 2>&1 | tee test-output.txt
-          python -m json.tool coverage.json > coverage.pretty.json && mv coverage.pretty.json coverage.json
-          echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+          PYTEST_EXIT=${PIPESTATUS[0]}
+          set -e
+          echo "exit_code=${PYTEST_EXIT}" >> "$GITHUB_OUTPUT"
+          if [ -f coverage.json ]; then
+            python -m json.tool coverage.json > coverage.pretty.json && mv coverage.pretty.json coverage.json
+          fi
+          exit ${PYTEST_EXIT}
 
       - name: Extract metrics
         id: metrics
+        if: always()
         run: |
           PASSED_COUNT=$(grep -oP '\d+(?= passed)' test-output.txt || echo "0")
           FAILED_COUNT=$(grep -oP '\d+(?= failed)' test-output.txt || echo "0")
-          TOTAL_COV=$(python -c "import json; d=json.load(open('coverage.json')); print(d['totals']['percent_covered_display'])")
-          COVERED_LINES=$(python -c "import json; d=json.load(open('coverage.json')); print(d['totals']['covered_lines'])")
-          TOTAL_LINES=$(python -c "import json; d=json.load(open('coverage.json')); print(d['totals']['num_statements'])")
+          if [ -f coverage.json ]; then
+            TOTAL_COV=$(python -c "import json; d=json.load(open('coverage.json')); print(d['totals']['percent_covered_display'])")
+            COVERED_LINES=$(python -c "import json; d=json.load(open('coverage.json')); print(d['totals']['covered_lines'])")
+            TOTAL_LINES=$(python -c "import json; d=json.load(open('coverage.json')); print(d['totals']['num_statements'])")
+          else
+            TOTAL_COV="N/A"
+            COVERED_LINES="N/A"
+            TOTAL_LINES="N/A"
+          fi
           echo "passed=${PASSED_COUNT}" >> "$GITHUB_OUTPUT"
           echo "failed=${FAILED_COUNT}" >> "$GITHUB_OUTPUT"
           echo "coverage=${TOTAL_COV}" >> "$GITHUB_OUTPUT"
@@ -123,13 +136,13 @@ jobs:
       # ── On PR: compare with main stats and post comment ──────────────────────
 
       - name: Fetch main stats from ci-data
-        if: github.event_name == 'pull_request'
+        if: always() && github.event_name == 'pull_request'
         run: |
           git fetch origin ci-data
           git show origin/ci-data:ci-stats.json > main-ci-stats.json 2>/dev/null || echo '{}' > main-ci-stats.json
 
       - name: Post coverage comment
-        if: github.event_name == 'pull_request'
+        if: always() && github.event_name == 'pull_request'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

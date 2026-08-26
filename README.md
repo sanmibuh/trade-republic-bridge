@@ -21,18 +21,29 @@ it only wraps pytr.
 docker run -d \
   --name tr-bridge \
   -p 8000:8000 \
-  -e TR_API_KEY=changeme \
-  -e TR_INSTANCES=user1,user2 \
   -v /path/to/data:/data \
   ghcr.io/sanmibuh/tr-bridge:latest
+```
+
+The host directory `/path/to/data` must contain `config.yml`. Session files are written there
+automatically under `tr_session_{name}/` subdirectories.
+
+```
+/path/to/data/
+  config.yml           ← your config file
+  tr_session_user1/    ← created automatically on first login
+  tr_session_user2/
 ```
 
 ### Running locally
 
 ```bash
-pip install tr-bridge
-TR_API_KEY=changeme TR_INSTANCES=user1 uvicorn tr_bridge.main:app --port 8000
+pip install -r requirements-dev.txt
+uvicorn tr_bridge.main:app --port 8000
 ```
+
+> **Note:** the app reads `/data/config.yml` at startup. Without it, the server will exit
+> immediately with a `ConfigError`. Create the file first (see [Configuration](#configuration)).
 
 Interactive API docs are available at `http://localhost:8000/docs`.
 
@@ -40,16 +51,26 @@ Interactive API docs are available at `http://localhost:8000/docs`.
 
 ## Configuration
 
-| Environment variable | Required | Description |
-|----------------------|----------|-------------|
-| `TR_API_KEY`         | yes      | Secret key sent in `X-API-Key` header by callers |
-| `TR_INSTANCES`       | yes      | Comma-separated list of instance names (ASCII alnum, `-`, `_`) |
-| `TR_DATA_ROOT`       | no       | Root directory for session files (default: `/data`) |
+The service reads `/data/config.yml` on startup and writes session files under `/data/tr_session_{name}/`. Mount `/data` as a writable volume.
 
-Session files (`credentials.json`, `cookies.txt`) are stored under `{TR_DATA_ROOT}/tr_session_{name}/`,
-one directory per instance. Mount this path as a persistent volume to survive container restarts.
+```yaml
+# config.yml
+api_key: "changeme"           # secret key required in X-API-Key header
 
-Instance names must match `^[a-zA-Z0-9_-]+$`. Names containing `.` or `..` are rejected.
+instances:
+  - name: user1               # session subdirectory name; must match ^[a-zA-Z0-9_-]+$
+    phone: "+49123456789"     # Trade Republic phone number
+    pin: "1234"               # Trade Republic PIN
+  - name: user2
+    phone: "+49987654321"
+    pin: "5678"
+```
+
+There are no environment variables to configure. The data location inside the container is always
+`/data`; mount the volume wherever you need it on the host.
+
+Session files (`credentials.json`, `cookies.txt`) are stored under `/data/tr_session_{name}/`,
+one directory per instance.
 
 ---
 
@@ -58,7 +79,7 @@ Instance names must match `^[a-zA-Z0-9_-]+$`. Names containing `.` or `..` are r
 All endpoints **except** `GET /health` require the header:
 
 ```
-X-API-Key: <TR_API_KEY>
+X-API-Key: <value of api_key in config.yml>
 ```
 
 Missing or invalid keys return `401 unauthorized`.

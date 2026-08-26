@@ -31,10 +31,33 @@ FastAPI was chosen because:
 
 ---
 
-## Multi-instance layout
+## Configuration
 
-Each instance maps to a single Trade Republic account. Instances are configured at startup via `TR_INSTANCES`
-(comma-separated names) and are addressed in every endpoint via a `{name}` path segment:
+The service reads a single YAML file at the fixed path `/data/config.yml`. The file contains the
+API key and the list of instances:
+
+```yaml
+api_key: "changeme"
+
+instances:
+  - name: user1
+    phone: "+49123456789"
+    pin: "1234"
+```
+
+All configuration is loaded once at startup through `tr_bridge/config.py`. No other module may call
+`os.getenv` or read the file directly. There are no environment variables.
+
+A YAML file was chosen over environment variables because each instance carries structured data
+(`name`, `phone`, `pin`); encoding a list of structs in env vars is error-prone. The file is mounted
+as a Docker volume, keeping credentials out of the image and out of the command line.
+
+The data root is always `/data` inside the container. Its actual location on the host is controlled
+entirely by the Docker volume mount — there is no config option for it, because it would be
+redundant: operators always decide the mount point from outside the container.
+
+Each instance maps to a single Trade Republic account. Instances are defined in `/data/config.yml`
+under the `instances` key and are addressed in every endpoint via a `{name}` path segment:
 
 ```
 /instances/{name}/status
@@ -56,7 +79,7 @@ prevent path-traversal when constructing the session directory path.
 Each instance stores its session on disk:
 
 ```
-{TR_DATA_ROOT}/
+/data/
   tr_session_user1/
     credentials.json
     cookies.txt
@@ -65,7 +88,7 @@ Each instance stores its session on disk:
     cookies.txt
 ```
 
-`TR_DATA_ROOT` should be a mounted volume so session files survive container restarts. On startup the bridge
+`/data` is a mounted volume so session files survive container restarts. On startup the bridge
 attempts `resume_websession()` for each instance; if a valid session is found, no login is required.
 
 ---
@@ -151,9 +174,9 @@ Rationale:
 
 ## Authentication model
 
-All endpoints except `GET /health` require an `X-API-Key` header validated against the `TR_API_KEY`
-environment variable. The bridge is intended for intranet/private deployment; API-key auth is sufficient
-for that threat model and avoids the overhead of OAuth or mTLS.
+All endpoints except `GET /health` require an `X-API-Key` header validated against the `api_key`
+field in `/data/config.yml`. The bridge is intended for intranet/private deployment; API-key auth is
+sufficient for that threat model and avoids the overhead of OAuth or mTLS.
 
 ---
 
