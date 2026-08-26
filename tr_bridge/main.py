@@ -47,4 +47,4 @@ def start() -> None:
     Intended for local development. The Docker image launches uvicorn directly
     via ``CMD`` with ``--host 0.0.0.0``.
     """
-    uvicorn.run("tr_bridge.main:app", port=8000)
+    uvicorn.run("tr_bridge.main:app", host="127.0.0.1", port=8000)
