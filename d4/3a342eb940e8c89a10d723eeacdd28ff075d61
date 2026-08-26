@@ -1,0 +1,18 @@
+tr_bridge/errors.py
+  h_35ce34583c4794 29
+ARCHITECTURE.md
+  h_35ce34583c4794 177-179
+README.md
+  h_35ce34583c4794 51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "d43a342eb940e8c89a10d723eeacdd28ff075d61",
+  "prompts": {},
+  "humans": {
+    "h_35ce34583c4794": {
+      "author": "David Belmez <sanmibuh@gmail.com>"
+    }
+  }
+}
