@@ -1,0 +1,16 @@
+tests/test_main.py
+  h_35ce34583c4794 4,21-39
+tr_bridge/main.py
+  h_35ce34583c4794 4-5,15,30-36,41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "fdab23e1b8224a36605a7c7a48b50e2431795337",
+  "prompts": {},
+  "humans": {
+    "h_35ce34583c4794": {
+      "author": "David Belmez <sanmibuh@gmail.com>"
+    }
+  }
+}
