@@ -57,6 +57,4 @@ class TestStart:
         with patch("tr_bridge.main.uvicorn.run") as mock_run:
             main_module.start()
 
-        mock_run.assert_called_once_with(
-            "tr_bridge.main:app", host="0.0.0.0", port=8000
-        )
+        mock_run.assert_called_once_with("tr_bridge.main:app", port=8000)
