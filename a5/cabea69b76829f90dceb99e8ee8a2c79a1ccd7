@@ -1,0 +1,16 @@
+.github/workflows/ci.yml
+  h_35ce34583c4794 70-73,77,133,139
+pyproject.toml
+  h_35ce34583c4794 1-3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "a5cabea69b76829f90dceb99e8ee8a2c79a1ccd7",
+  "prompts": {},
+  "humans": {
+    "h_35ce34583c4794": {
+      "author": "David Belmez <sanmibuh@gmail.com>"
+    }
+  }
+}
