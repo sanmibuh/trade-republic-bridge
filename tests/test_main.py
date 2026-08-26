@@ -10,9 +10,11 @@ from fastapi.testclient import TestClient
 from starlette.exceptions import HTTPException
 
 import tr_bridge.main as main_module
+from tr_bridge.auth import UnauthorizedException
 from tr_bridge.main import (
     _http_exception_handler,
     _request_validation_error_handler,
+    _unauthorized_exception_handler,
     _unhandled_exception_handler,
     app,
 )
@@ -129,6 +131,48 @@ class TestVersionReading:
         version = main_module._read_version()
 
         assert version == "unknown"
+
+
+class TestHealthEndpoint:
+    def test_health_returns_200_without_api_key(self) -> None:
+        """/health must be reachable without any authentication."""
+        with patch("tr_bridge.main.Config") as mock_cfg_cls:
+            mock_cfg_cls.load.return_value = MagicMock()
+            with TestClient(app) as client:
+                resp = client.get("/health")
+
+        assert resp.status_code == 200
+        assert resp.json() == {"status": "ok"}
+
+    def test_health_does_not_require_x_api_key(self) -> None:
+        """/health must return 200 even when X-API-Key is absent."""
+        with patch("tr_bridge.main.Config") as mock_cfg_cls:
+            mock_cfg_cls.load.return_value = MagicMock()
+            with TestClient(app) as client:
+                resp = client.get("/health", headers={})
+
+        assert resp.status_code == 200
+
+
+class TestUnauthorizedExceptionHandler:
+    def test_unauthorized_exception_returns_401_problem_json(self) -> None:
+        test_app = FastAPI()
+        test_app.add_exception_handler(
+            UnauthorizedException, _unauthorized_exception_handler
+        )
+
+        @test_app.get("/_test_auth")
+        async def _auth_route():
+            raise UnauthorizedException
+
+        client = TestClient(test_app, raise_server_exceptions=False)
+        resp = client.get("/_test_auth")
+
+        assert resp.status_code == 401
+        assert resp.headers["content-type"] == "application/problem+json"
+        body = resp.json()
+        assert body["status"] == 401
+        assert body["code"] == "unauthorized"
 
 
 class TestStart:

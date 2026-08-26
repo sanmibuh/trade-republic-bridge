@@ -7,11 +7,12 @@ from http import HTTPStatus
 from pathlib import Path
 
 import uvicorn
-from fastapi import FastAPI, Request
+from fastapi import APIRouter, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import Response
 from starlette.exceptions import HTTPException
 
+from tr_bridge.auth import UnauthorizedException, require_api_key
 from tr_bridge.config import Config
 from tr_bridge.errors import ProblemDetail, problem_response
 
@@ -40,6 +41,20 @@ app = FastAPI(
     description="Thin HTTP wrapper around pytr for Trade Republic session management.",
     lifespan=_lifespan,
 )
+
+
+@app.exception_handler(UnauthorizedException)
+async def _unauthorized_exception_handler(
+    request: Request, exc: UnauthorizedException
+) -> Response:
+    return problem_response(
+        ProblemDetail(
+            status=401,
+            code="unauthorized",
+            title="Unauthorized",
+            detail="Missing or invalid API key. Provide a valid X-API-Key header.",
+        )
+    )
 
 
 @app.exception_handler(HTTPException)
@@ -83,6 +98,25 @@ async def _unhandled_exception_handler(request: Request, exc: Exception) -> Resp
             detail="An unexpected error occurred.",
         )
     )
+
+
+# ---------------------------------------------------------------------------
+# Public routes (no authentication required)
+# ---------------------------------------------------------------------------
+
+
+@app.get("/health", tags=["ops"])
+async def health() -> dict:
+    """Liveness probe — returns 200 OK with no authentication required."""
+    return {"status": "ok"}
+
+
+# ---------------------------------------------------------------------------
+# Protected router — all routes below require a valid X-API-Key header
+# ---------------------------------------------------------------------------
+
+protected_router = APIRouter(dependencies=[require_api_key])
+app.include_router(protected_router)
 
 
 def start() -> None:
