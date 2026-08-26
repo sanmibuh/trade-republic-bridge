@@ -1,0 +1,16 @@
+README.md
+  h_35ce34583c4794 45-47
+tests/test_main.py
+  h_35ce34583c4794 60-66,69-72,82
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "ab09d3dcb35ec845c04d1d41d06403b774e0f69f",
+  "prompts": {},
+  "humans": {
+    "h_35ce34583c4794": {
+      "author": "David Belmez <sanmibuh@gmail.com>"
+    }
+  }
+}
