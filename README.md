@@ -67,7 +67,7 @@ one directory per instance.
 All endpoints **except** `GET /health` require the header:
 
 ```
-X-API-Key: <TR_API_KEY>
+X-API-Key: <value of api_key in config.yml>
 ```
 
 Missing or invalid keys return `401 unauthorized`.

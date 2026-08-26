@@ -79,7 +79,7 @@ prevent path-traversal when constructing the session directory path.
 Each instance stores its session on disk:
 
 ```
-{TR_DATA_ROOT}/
+/data/
   tr_session_user1/
     credentials.json
     cookies.txt
@@ -88,7 +88,7 @@ Each instance stores its session on disk:
     cookies.txt
 ```
 
-`TR_DATA_ROOT` should be a mounted volume so session files survive container restarts. On startup the bridge
+`/data` is a mounted volume so session files survive container restarts. On startup the bridge
 attempts `resume_websession()` for each instance; if a valid session is found, no login is required.
 
 ---
