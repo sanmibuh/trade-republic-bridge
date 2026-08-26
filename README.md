@@ -48,7 +48,7 @@ Interactive API docs are available at `http://localhost:8000/docs`.
 
 ## Configuration
 
-The service reads `/data/config.yml` on startup. Mount it as a read-only file inside the container.
+git pushThe service reads `/data/config.yml` on startup and writes session files under `/data/tr_session_{name}/`. Mount `/data` as a writable volume.
 
 ```yaml
 # config.yml

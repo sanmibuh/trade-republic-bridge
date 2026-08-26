@@ -174,9 +174,9 @@ Rationale:
 
 ## Authentication model
 
-All endpoints except `GET /health` require an `X-API-Key` header validated against the `TR_API_KEY`
-environment variable. The bridge is intended for intranet/private deployment; API-key auth is sufficient
-for that threat model and avoids the overhead of OAuth or mTLS.
+All endpoints except `GET /health` require an `X-API-Key` header validated against the `api_key`
+field in `/data/config.yml`. The bridge is intended for intranet/private deployment; API-key auth is
+sufficient for that threat model and avoids the overhead of OAuth or mTLS.
 
 ---
 

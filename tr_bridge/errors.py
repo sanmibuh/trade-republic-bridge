@@ -1,7 +1,5 @@
 """RFC 9457 Problem Details — error model and response helper."""
 
-import json
-
 from pydantic import BaseModel, model_validator
 from starlette.responses import Response
 
@@ -28,7 +26,7 @@ class ProblemDetail(BaseModel):
 def problem_response(detail: ProblemDetail) -> Response:
     """Return a Starlette ``Response`` with ``application/problem+json`` content."""
     return Response(
-        content=json.dumps(detail.model_dump()),
+        content=detail.model_dump_json(),
         status_code=detail.status,
         media_type="application/problem+json",
     )
