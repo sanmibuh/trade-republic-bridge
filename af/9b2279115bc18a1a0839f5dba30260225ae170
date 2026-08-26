@@ -1,0 +1,20 @@
+tests/test_config.py
+  h_35ce34583c4794 132-138
+tests/test_main.py
+  h_35ce34583c4794 8,10,13-18,41-90
+tr_bridge/config.py
+  h_35ce34583c4794 94-97
+tr_bridge/main.py
+  h_35ce34583c4794 4,9,11,34-63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "af9b2279115bc18a1a0839f5dba30260225ae170",
+  "prompts": {},
+  "humans": {
+    "h_35ce34583c4794": {
+      "author": "David Belmez <sanmibuh@gmail.com>"
+    }
+  }
+}
