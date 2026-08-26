@@ -67,10 +67,14 @@ jobs:
           PYTEST_EXIT=${PIPESTATUS[0]}
           set -e
           echo "exit_code=${PYTEST_EXIT}" >> "$GITHUB_OUTPUT"
-          python -m json.tool coverage.json > coverage.pretty.json && mv coverage.pretty.json coverage.json
+          if [ -f coverage.json ]; then
+            python -m json.tool coverage.json > coverage.pretty.json && mv coverage.pretty.json coverage.json
+          fi
+          exit ${PYTEST_EXIT}
 
       - name: Extract metrics
         id: metrics
+        if: always()
         run: |
           PASSED_COUNT=$(grep -oP '\d+(?= passed)' test-output.txt || echo "0")
           FAILED_COUNT=$(grep -oP '\d+(?= failed)' test-output.txt || echo "0")
@@ -126,13 +130,13 @@ jobs:
       # ── On PR: compare with main stats and post comment ──────────────────────
 
       - name: Fetch main stats from ci-data
-        if: github.event_name == 'pull_request'
+        if: always() && github.event_name == 'pull_request'
         run: |
           git fetch origin ci-data
           git show origin/ci-data:ci-stats.json > main-ci-stats.json 2>/dev/null || echo '{}' > main-ci-stats.json
 
       - name: Post coverage comment
-        if: github.event_name == 'pull_request'
+        if: always() && github.event_name == 'pull_request'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
