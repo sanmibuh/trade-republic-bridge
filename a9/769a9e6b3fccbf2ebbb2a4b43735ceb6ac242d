@@ -1,0 +1,29 @@
+tests/test_main.py
+  s_65db0868848489::t_79048ee0250bce 54-56
+tr_bridge/main.py
+  s_93d7f62232d88f::t_76aadd1d57b3f4 50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "a9769a9e6b3fccbf2ebbb2a4b43735ceb6ac242d",
+  "prompts": {},
+  "sessions": {
+    "s_65db0868848489": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fc5039e14ffeTceGWkfCbMWHY0",
+        "model": "claude-sonnet-4.6"
+      },
+      "human_author": "David Belmez <sanmibuh@gmail.com>"
+    },
+    "s_93d7f62232d88f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fc2c9c132ffedvuoVDOZSWo014",
+        "model": "claude-opus-4.8"
+      },
+      "human_author": "David Belmez <sanmibuh@gmail.com>"
+    }
+  }
+}
