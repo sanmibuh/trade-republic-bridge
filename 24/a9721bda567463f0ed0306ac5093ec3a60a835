@@ -1,0 +1,19 @@
+tr_bridge/config.py
+  h_35ce34583c4794 98
+  h_35ce34583c4794 97
+pyproject.toml
+  h_35ce34583c4794 25
+tr_bridge/errors.py
+  h_35ce34583c4794 29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "24a9721bda567463f0ed0306ac5093ec3a60a835",
+  "prompts": {},
+  "humans": {
+    "h_35ce34583c4794": {
+      "author": "David Belmez <sanmibuh@gmail.com>"
+    }
+  }
+}
