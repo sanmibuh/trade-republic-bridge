@@ -110,6 +110,59 @@ class TestConfigPath:
 
 
 # ---------------------------------------------------------------------------
+# Top-level YAML type validation
+# ---------------------------------------------------------------------------
+
+
+class TestYamlTopLevelType:
+    def test_yaml_list_at_top_level_raises(self, tmp_path) -> None:
+        path = str(tmp_path / "config.yml")
+        (tmp_path / "config.yml").write_text("- item1\n- item2\n")
+
+        with pytest.raises(ConfigError, match="mapping"):
+            Config.from_file(path)
+
+    def test_yaml_string_at_top_level_raises(self, tmp_path) -> None:
+        path = str(tmp_path / "config.yml")
+        (tmp_path / "config.yml").write_text("just a string\n")
+
+        with pytest.raises(ConfigError, match="mapping"):
+            Config.from_file(path)
+
+
+# ---------------------------------------------------------------------------
+# instances must be a list of mappings
+# ---------------------------------------------------------------------------
+
+
+class TestInstancesMustBeMappings:
+    def test_instances_as_string_raises(self, tmp_path) -> None:
+        path = _write_config(
+            tmp_path,
+            """
+            api_key: k
+            instances: "not-a-list"
+            """,
+        )
+
+        with pytest.raises(ConfigError, match="instances"):
+            Config.from_file(path)
+
+    def test_instance_entry_not_a_mapping_raises(self, tmp_path) -> None:
+        path = _write_config(
+            tmp_path,
+            """
+            api_key: k
+            instances:
+              - "just a string"
+            """,
+        )
+
+        with pytest.raises(ConfigError, match="mapping"):
+            Config.from_file(path)
+
+
+# ---------------------------------------------------------------------------
 # Missing file
 # ---------------------------------------------------------------------------
 
@@ -292,6 +345,23 @@ class TestSessionDir:
         cfg = Config.from_file(path)
 
         assert cfg.session_dir("user1") == "/data/tr_session_user1"
+
+    def test_unknown_instance_raises(self, tmp_path) -> None:
+        path = _write_config(
+            tmp_path,
+            """
+            api_key: k
+            instances:
+              - name: user1
+                phone: "+491"
+                pin: "0000"
+            """,
+        )
+
+        cfg = Config.from_file(path)
+
+        with pytest.raises(ConfigError, match="Unknown instance"):
+            cfg.session_dir("ghost")
 
 
 # ---------------------------------------------------------------------------

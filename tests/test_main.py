@@ -1,33 +1,27 @@
 """Tests for tr_bridge.main — app wiring and global exception handler."""
 
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from fastapi import APIRouter
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 import tr_bridge.main as main_module
-from tr_bridge.main import app
-
-
-@pytest.fixture
-def client() -> TestClient:
-    return TestClient(app, raise_server_exceptions=False)
+from tr_bridge.main import _unhandled_exception_handler, app
 
 
 class TestUnhandledExceptionHandler:
-    def test_unhandled_exception_returns_500_problem_json(
-        self, client: TestClient
-    ) -> None:
-        # Register a route that always raises to trigger the global handler.
-        router = APIRouter()
+    def test_unhandled_exception_returns_500_problem_json(self) -> None:
+        # Use a dedicated app to avoid mutating the global app state.
+        test_app = FastAPI()
+        test_app.add_exception_handler(Exception, _unhandled_exception_handler)
 
-        @router.get("/_test_crash")
+        @test_app.get("/_test_crash")
         async def _crash():
             raise RuntimeError("boom")
 
-        app.include_router(router)
-
+        client = TestClient(test_app, raise_server_exceptions=False)
         resp = client.get("/_test_crash")
 
         assert resp.status_code == 500
@@ -42,7 +36,7 @@ class TestVersionReading:
         assert app.version != ""
 
     def test_read_version_returns_unknown_when_file_missing(
-        self, tmp_path: pytest.TempPath, monkeypatch: pytest.MonkeyPatch
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         missing = tmp_path / "NO_VERSION"
         monkeypatch.setattr(main_module, "_VERSION_FILE", missing)

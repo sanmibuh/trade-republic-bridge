@@ -69,11 +69,16 @@ class Config:
         return [i.name for i in self.instances]
 
     def session_dir(self, name: str) -> str:
-        """Return the session directory path for *name*.
+        """Return the session directory path for a configured instance *name*.
 
         The data root is always ``/data`` inside the container; callers
         control the actual location via the Docker volume mount.
+
+        Raises:
+            ConfigError: if *name* is not a configured instance.
         """
+        if name not in self.instance_names:
+            raise ConfigError(f"Unknown instance name: {name!r}")
         return f"{_DATA_ROOT}/tr_session_{name}"
 
     # ------------------------------------------------------------------
@@ -86,7 +91,12 @@ class Config:
             text = Path(path).read_text()
         except OSError as exc:
             raise ConfigError(f"Config file not found: {path!r}") from exc
-        return yaml.safe_load(text) or {}
+        data = yaml.safe_load(text)
+        if not isinstance(data, dict):
+            raise ConfigError(
+                f"Config file must be a YAML mapping at the top level; got: {type(data).__name__}"
+            )
+        return data
 
     @staticmethod
     def _require_str(raw: dict, key: str) -> str:
@@ -100,10 +110,16 @@ class Config:
     @classmethod
     def _parse_instances(cls, raw: dict) -> list[InstanceConfig]:
         items = raw.get("instances")
-        if not items:
+        if not isinstance(items, list) or not items:
             raise ConfigError(
                 "Config field 'instances' is required and must be a non-empty list"
             )
+        for i, item in enumerate(items):
+            if not isinstance(item, dict):
+                raise ConfigError(
+                    f"Each entry in 'instances' must be a mapping; "
+                    f"entry {i} is {type(item).__name__}"
+                )
         return [cls._parse_instance(item) for item in items]
 
     @classmethod

@@ -1,6 +1,10 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.backends.legacy:build"
+
 [project]
 name = "tr-bridge"
-version = "0.1.0"
+dynamic = ["version"]
 requires-python = ">=3.11"
 dependencies = [
     "fastapi==0.141.1",
@@ -12,6 +16,9 @@ dependencies = [
 
 [project.scripts]
 tr-bridge = "tr_bridge.main:start"
+
+[tool.setuptools.dynamic]
+version = {file = "VERSION"}
 
 [tool.ruff]
 target-version = "py311"
