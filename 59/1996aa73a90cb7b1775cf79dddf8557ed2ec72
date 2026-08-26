@@ -1,0 +1,31 @@
+.github/workflows/ci.yml
+  s_93d7f62232d88f::t_2f8a3f78314413 81-89
+tr_bridge/config.py
+  s_65db0868848489::t_299d5aa305d29d 138
+README.md
+  s_93d7f62232d88f::t_bb03624fe4ce9a 32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "591996aa73a90cb7b1775cf79dddf8557ed2ec72",
+  "prompts": {},
+  "sessions": {
+    "s_65db0868848489": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fc5039e14ffeTceGWkfCbMWHY0",
+        "model": "claude-sonnet-4.6"
+      },
+      "human_author": "David Belmez <sanmibuh@gmail.com>"
+    },
+    "s_93d7f62232d88f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fc2c9c132ffedvuoVDOZSWo014",
+        "model": "claude-opus-4.8"
+      },
+      "human_author": "David Belmez <sanmibuh@gmail.com>"
+    }
+  }
+}
