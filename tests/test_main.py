@@ -10,7 +10,7 @@ import tr_bridge.main as main_module
 from tr_bridge.main import app
 
 
-@pytest.fixture()
+@pytest.fixture
 def client() -> TestClient:
     return TestClient(app, raise_server_exceptions=False)
 
@@ -42,15 +42,12 @@ class TestVersionReading:
         assert app.version != ""
 
     def test_read_version_returns_unknown_when_file_missing(
-        self, tmp_path: pytest.TempPath
+        self, tmp_path: pytest.TempPath, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         missing = tmp_path / "NO_VERSION"
-        original = main_module._VERSION_FILE
-        main_module._VERSION_FILE = missing
-        try:
-            version = main_module._read_version()
-        finally:
-            main_module._VERSION_FILE = original
+        monkeypatch.setattr(main_module, "_VERSION_FILE", missing)
+
+        version = main_module._read_version()
 
         assert version == "unknown"
 

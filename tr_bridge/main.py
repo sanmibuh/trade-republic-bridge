@@ -43,4 +43,6 @@ async def _unhandled_exception_handler(request: Request, exc: Exception) -> Resp
 
 def start() -> None:
     """Entry point for the ``tr-bridge`` console script."""
+    # Binding to 0.0.0.0 is intentional: the service runs inside a Docker
+    # container and must be reachable from outside via the published port.
     uvicorn.run("tr_bridge.main:app", host="0.0.0.0", port=8000)
