@@ -1,0 +1,20 @@
+pyproject.toml
+  h_35ce34583c4794 1-4,7,20-22
+tests/test_config.py
+  h_35ce34583c4794 112-164,349-365
+tests/test_main.py
+  h_35ce34583c4794 3,7,11,15-18,20,24,39
+tr_bridge/config.py
+  h_35ce34583c4794 72,76-78,80-81,94-99,113,117-122
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "955445b74ceddd0b2fb5072d4e6f7deb0319092b",
+  "prompts": {},
+  "humans": {
+    "h_35ce34583c4794": {
+      "author": "David Belmez <sanmibuh@gmail.com>"
+    }
+  }
+}
