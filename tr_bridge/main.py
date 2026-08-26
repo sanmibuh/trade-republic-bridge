@@ -1,6 +1,8 @@
 """FastAPI application entry point."""
 
 import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from http import HTTPStatus
 from pathlib import Path
 
@@ -10,6 +12,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import Response
 from starlette.exceptions import HTTPException
 
+from tr_bridge.config import Config
 from tr_bridge.errors import ProblemDetail, problem_response
 
 logger = logging.getLogger(__name__)
@@ -24,10 +27,18 @@ def _read_version() -> str:
         return "unknown"
 
 
+@asynccontextmanager
+async def _lifespan(application: FastAPI) -> AsyncIterator[None]:
+    """Load and validate configuration on startup; fail fast if invalid."""
+    Config.load()
+    yield
+
+
 app = FastAPI(
     title="tr-bridge",
     version=_read_version(),
     description="Thin HTTP wrapper around pytr for Trade Republic session management.",
+    lifespan=_lifespan,
 )
 
 

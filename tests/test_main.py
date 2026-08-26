@@ -1,7 +1,7 @@
 """Tests for tr_bridge.main — app wiring and global exception handler."""
 
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi import FastAPI
@@ -16,6 +16,25 @@ from tr_bridge.main import (
     _unhandled_exception_handler,
     app,
 )
+
+
+class TestStartup:
+    def test_config_is_loaded_at_startup(self) -> None:
+        """App must call Config.load() during lifespan startup."""
+        mock_config = MagicMock()
+        with patch("tr_bridge.main.Config") as mock_cfg_cls:
+            mock_cfg_cls.load.return_value = mock_config
+            with TestClient(app):
+                mock_cfg_cls.load.assert_called_once()
+
+    def test_startup_fails_fast_on_invalid_config(self) -> None:
+        """App must raise on startup when config is invalid."""
+        from tr_bridge.config import ConfigError
+
+        with patch("tr_bridge.main.Config") as mock_cfg_cls:
+            mock_cfg_cls.load.side_effect = ConfigError("bad config")
+            with pytest.raises(ConfigError, match="bad config"), TestClient(app):
+                pass
 
 
 class TestUnhandledExceptionHandler:
