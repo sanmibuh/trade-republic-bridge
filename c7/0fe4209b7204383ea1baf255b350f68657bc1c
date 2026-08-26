@@ -1,0 +1,23 @@
+tr_bridge/auth.py
+  s_ed97ff1fdc1f5e::t_4f11a5a61df744 1-34
+tests/test_auth.py
+  s_ed97ff1fdc1f5e::t_77be1fc92946f8 1-82
+tests/test_main.py
+  s_ed97ff1fdc1f5e::t_0274011273aeeb 13,17,136-177
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "c70fe4209b7204383ea1baf255b350f68657bc1c",
+  "prompts": {},
+  "sessions": {
+    "s_ed97ff1fdc1f5e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fc0117375ffexROPrvuCxTCbdl",
+        "model": "claude-sonnet-4.6"
+      },
+      "human_author": "David Belmez <sanmibuh@gmail.com>"
+    }
+  }
+}
