@@ -21,9 +21,8 @@ it only wraps pytr.
 docker run -d \
   --name tr-bridge \
   -p 8000:8000 \
-  -e TR_API_KEY=changeme \
-  -e TR_INSTANCES=user1,user2 \
-  -v /path/to/data:/data \
+  -v /path/to/config.yml:/data/config.yml \
+  -v /path/to/sessions:/data \
   ghcr.io/sanmibuh/tr-bridge:latest
 ```
 
@@ -31,7 +30,7 @@ docker run -d \
 
 ```bash
 pip install tr-bridge
-TR_API_KEY=changeme TR_INSTANCES=user1 uvicorn tr_bridge.main:app --port 8000
+uvicorn tr_bridge.main:app --port 8000
 ```
 
 Interactive API docs are available at `http://localhost:8000/docs`.
@@ -40,16 +39,26 @@ Interactive API docs are available at `http://localhost:8000/docs`.
 
 ## Configuration
 
-| Environment variable | Required | Description |
-|----------------------|----------|-------------|
-| `TR_API_KEY`         | yes      | Secret key sent in `X-API-Key` header by callers |
-| `TR_INSTANCES`       | yes      | Comma-separated list of instance names (ASCII alnum, `-`, `_`) |
-| `TR_DATA_ROOT`       | no       | Root directory for session files (default: `/data`) |
+The service reads `/data/config.yml` on startup. Mount it as a read-only file inside the container.
 
-Session files (`credentials.json`, `cookies.txt`) are stored under `{TR_DATA_ROOT}/tr_session_{name}/`,
-one directory per instance. Mount this path as a persistent volume to survive container restarts.
+```yaml
+# config.yml
+api_key: "changeme"           # secret key required in X-API-Key header
 
-Instance names must match `^[a-zA-Z0-9_-]+$`. Names containing `.` or `..` are rejected.
+instances:
+  - name: user1               # session subdirectory name; must match ^[a-zA-Z0-9_-]+$
+    phone: "+49123456789"     # Trade Republic phone number
+    pin: "1234"               # Trade Republic PIN
+  - name: user2
+    phone: "+49987654321"
+    pin: "5678"
+```
+
+There are no environment variables to configure. The data location inside the container is always
+`/data`; mount the volume wherever you need it on the host.
+
+Session files (`credentials.json`, `cookies.txt`) are stored under `/data/tr_session_{name}/`,
+one directory per instance.
 
 ---
 

@@ -31,7 +31,30 @@ FastAPI was chosen because:
 
 ---
 
-## Multi-instance layout
+## Configuration
+
+The service reads a single YAML file at the fixed path `/data/config.yml`. The file contains the
+API key and the list of instances:
+
+```yaml
+api_key: "changeme"
+
+instances:
+  - name: user1
+    phone: "+49123456789"
+    pin: "1234"
+```
+
+All configuration is loaded once at startup through `tr_bridge/config.py`. No other module may call
+`os.getenv` or read the file directly. There are no environment variables.
+
+A YAML file was chosen over environment variables because each instance carries structured data
+(`name`, `phone`, `pin`); encoding a list of structs in env vars is error-prone. The file is mounted
+as a Docker volume, keeping credentials out of the image and out of the command line.
+
+The data root is always `/data` inside the container. Its actual location on the host is controlled
+entirely by the Docker volume mount — there is no config option for it, because it would be
+redundant: operators always decide the mount point from outside the container.
 
 Each instance maps to a single Trade Republic account. Instances are configured at startup via `TR_INSTANCES`
 (comma-separated names) and are addressed in every endpoint via a `{name}` path segment:

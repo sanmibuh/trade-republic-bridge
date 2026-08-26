@@ -24,7 +24,7 @@ install:
 	$(VENV)/bin/pip install -r requirements-dev.txt
 
 test:
-	$(PYTHON) -m pytest --cov=app --cov-report=term-missing
+	$(PYTHON) -m pytest --cov=tr_bridge --cov-report=term-missing
 
 lint:
 	$(PYTHON) -m ruff check .
