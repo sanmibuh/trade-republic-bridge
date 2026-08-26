@@ -60,11 +60,13 @@ jobs:
       - name: Run tests with coverage
         id: tests
         run: |
-          set -o pipefail
+          set +e
           python -m pytest --cov=tr_bridge --cov-fail-under=97 \
             --cov-report=term-missing \
             --cov-report=json 2>&1 | tee test-output.txt
-          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+          PYTEST_EXIT=${PIPESTATUS[0]}
+          set -e
+          echo "exit_code=${PYTEST_EXIT}" >> "$GITHUB_OUTPUT"
           python -m json.tool coverage.json > coverage.pretty.json && mv coverage.pretty.json coverage.json
 
       - name: Extract metrics
