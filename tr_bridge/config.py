@@ -121,7 +121,14 @@ class Config:
                     f"Each entry in 'instances' must be a mapping; "
                     f"entry {i} is {type(item).__name__}"
                 )
-        return [cls._parse_instance(item) for item in items]
+        instances = [cls._parse_instance(item) for item in items]
+        names = [inst.name for inst in instances]
+        seen: set[str] = set()
+        for name in names:
+            if name in seen:
+                raise ConfigError(f"Duplicate instance name: {name!r}")
+            seen.add(name)
+        return instances
 
     @classmethod
     def _parse_instance(cls, item: dict) -> InstanceConfig:

@@ -42,9 +42,9 @@ async def _unhandled_exception_handler(request: Request, exc: Exception) -> Resp
 
 
 def start() -> None:
-    """Entry point for the ``tr-bridge`` console script.
+    """Start the tr-bridge server on port 8000, bound to 127.0.0.1.
 
-    Binds to 127.0.0.1 by default. The Docker image overrides this via
-    ``CMD ["uvicorn", "tr_bridge.main:app", "--host", "0.0.0.0", ...]``.
+    Intended for local development. The Docker image launches uvicorn directly
+    via ``CMD`` with ``--host 0.0.0.0``.
     """
     uvicorn.run("tr_bridge.main:app", port=8000)

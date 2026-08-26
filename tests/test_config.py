@@ -369,6 +369,26 @@ class TestSessionDir:
 # ---------------------------------------------------------------------------
 
 
+class TestDuplicateInstanceNames:
+    def test_duplicate_instance_names_raise(self, tmp_path) -> None:
+        path = _write_config(
+            tmp_path,
+            """
+            api_key: secret
+            instances:
+              - name: user1
+                phone: "+49111111111"
+                pin: "1234"
+              - name: user1
+                phone: "+49222222222"
+                pin: "5678"
+            """,
+        )
+
+        with pytest.raises(ConfigError, match="Duplicate instance name"):
+            Config.from_file(path)
+
+
 class TestInstanceConfig:
     def test_fields(self) -> None:
         inst = InstanceConfig(name="u1", phone="+491", pin="0000")
