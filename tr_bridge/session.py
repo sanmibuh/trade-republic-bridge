@@ -15,7 +15,9 @@ import asyncio
 import logging
 from enum import StrEnum
 from pathlib import Path
+from typing import NoReturn
 
+import requests
 from pytr.api import TradeRepublicApi
 
 from tr_bridge.config import InstanceConfig
@@ -39,12 +41,24 @@ class CodeRejectedError(Exception):
     """Raised when a submitted 2FA code is rejected by Trade Republic."""
 
 
+class RateLimitedError(Exception):
+    """Raised when Trade Republic rejects a login with HTTP 429 (rate limit)."""
+
+
+class TrUpstreamError(Exception):
+    """Raised when a Trade Republic request fails with an unexpected upstream error."""
+
+
 class InvalidStateError(Exception):
     """Raised when an operation is attempted in an incompatible state."""
 
     def __init__(self, state: SessionState) -> None:
         super().__init__(f"Operation not valid in state {state.value!r}")
         self.state = state
+
+
+class NoLoginPendingError(InvalidStateError):
+    """Raised when a 2FA code is submitted but no login is awaiting a code."""
 
 
 class InstanceSession:
@@ -115,14 +129,19 @@ class InstanceSession:
             api = self._build_api()
             loop = asyncio.get_running_loop()
 
-            success: bool = await loop.run_in_executor(None, api.resume_websession)
-            if success:
-                self._api = api
-                self._state = SessionState.confirmed
-                logger.info("Instance %r: login via session resume.", self._config.name)
-                return self._state
+            try:
+                success: bool = await loop.run_in_executor(None, api.resume_websession)
+                if success:
+                    self._api = api
+                    self._state = SessionState.confirmed
+                    logger.info(
+                        "Instance %r: login via session resume.", self._config.name
+                    )
+                    return self._state
 
-            await loop.run_in_executor(None, api.initiate_weblogin)
+                await loop.run_in_executor(None, api.initiate_weblogin)
+            except requests.exceptions.RequestException as exc:
+                self._fail_with_upstream(exc)
             self._api = api
 
             if api.weblogin_needs_authenticator:
@@ -146,13 +165,13 @@ class InstanceSession:
         Transitions state from ``authenticator`` to ``confirmed``.
 
         Raises:
-            InvalidStateError: if the session is not in ``authenticator`` state.
+            NoLoginPendingError: if no login is awaiting an authenticator code.
             CodeRejectedError: if Trade Republic rejects the code.
         """
         if self._state != SessionState.authenticator:
-            raise InvalidStateError(self._state)
+            raise NoLoginPendingError(self._state)
         if self._api is None:
-            raise InvalidStateError(self._state)
+            raise NoLoginPendingError(self._state)
 
         api = self._api
         loop = asyncio.get_running_loop()
@@ -179,6 +198,25 @@ class InstanceSession:
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    def _fail_with_upstream(
+        self, exc: requests.exceptions.RequestException
+    ) -> NoReturn:
+        """Transition to ``failed`` and re-raise *exc* as a domain error.
+
+        HTTP 429 becomes :class:`RateLimitedError`; anything else becomes
+        :class:`TrUpstreamError`.
+        """
+        self._state = SessionState.failed
+        self._cancel_timeout()
+        response = getattr(exc, "response", None)
+        if response is not None and response.status_code == 429:
+            logger.warning("Instance %r: login rate-limited.", self._config.name)
+            raise RateLimitedError(
+                f"Trade Republic rate-limited login for instance {self._config.name!r}."
+            ) from exc
+        logger.warning("Instance %r: upstream login error: %s", self._config.name, exc)
+        raise TrUpstreamError(str(exc)) from exc
 
     def _build_api(self) -> TradeRepublicApi:
         session_path = Path(self._session_dir)

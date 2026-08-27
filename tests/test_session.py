@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+import requests
 
 from tr_bridge.config import InstanceConfig
 from tr_bridge.session import (
@@ -14,7 +15,10 @@ from tr_bridge.session import (
     InstanceSession,
     InvalidStateError,
     LoginInProgressError,
+    NoLoginPendingError,
+    RateLimitedError,
     SessionState,
+    TrUpstreamError,
 )
 
 _INSTANCE = InstanceConfig(name="user1", phone="+49123456789", pin="1234")
@@ -123,6 +127,64 @@ class TestStartLogin:
         with pytest.raises(LoginInProgressError):
             await session.start_login()
 
+    @staticmethod
+    def _http_error(status_code: int) -> requests.exceptions.HTTPError:
+        response = requests.Response()
+        response.status_code = status_code
+        return requests.exceptions.HTTPError(response=response)
+
+    @pytest.mark.asyncio
+    async def test_start_login_rate_limited_on_429(self, tmp_path: Path) -> None:
+        session = _make_session(tmp_path)
+        api = _mock_api(resume_returns=False)
+        api.initiate_weblogin.side_effect = self._http_error(429)
+        with (
+            patch("tr_bridge.session.TradeRepublicApi", return_value=api),
+            pytest.raises(RateLimitedError),
+        ):
+            await session.start_login()
+        assert session.state == SessionState.failed
+
+    @pytest.mark.asyncio
+    async def test_start_login_upstream_error_on_500(self, tmp_path: Path) -> None:
+        session = _make_session(tmp_path)
+        api = _mock_api(resume_returns=False)
+        api.initiate_weblogin.side_effect = self._http_error(500)
+        with (
+            patch("tr_bridge.session.TradeRepublicApi", return_value=api),
+            pytest.raises(TrUpstreamError),
+        ):
+            await session.start_login()
+        assert session.state == SessionState.failed
+
+    @pytest.mark.asyncio
+    async def test_start_login_upstream_error_on_connection_failure(
+        self, tmp_path: Path
+    ) -> None:
+        session = _make_session(tmp_path)
+        api = _mock_api(resume_returns=False)
+        api.initiate_weblogin.side_effect = requests.exceptions.ConnectionError("boom")
+        with (
+            patch("tr_bridge.session.TradeRepublicApi", return_value=api),
+            pytest.raises(TrUpstreamError),
+        ):
+            await session.start_login()
+        assert session.state == SessionState.failed
+
+    @pytest.mark.asyncio
+    async def test_start_login_upstream_error_when_resume_fails(
+        self, tmp_path: Path
+    ) -> None:
+        session = _make_session(tmp_path)
+        api = _mock_api()
+        api.resume_websession.side_effect = self._http_error(503)
+        with (
+            patch("tr_bridge.session.TradeRepublicApi", return_value=api),
+            pytest.raises(TrUpstreamError),
+        ):
+            await session.start_login()
+        assert session.state == SessionState.failed
+
 
 class TestSubmit2FA:
     @pytest.mark.asyncio
@@ -148,12 +210,29 @@ class TestSubmit2FA:
         assert session.state == SessionState.authenticator
 
     @pytest.mark.asyncio
-    async def test_submit_2fa_wrong_state_raises_invalid_state(
+    async def test_submit_2fa_wrong_state_raises_no_login_pending(
         self, tmp_path: Path
     ) -> None:
         session = _make_session(tmp_path)
         session._state = SessionState.idle
+        with pytest.raises(NoLoginPendingError):
+            await session.submit_2fa("123456")
+
+    @pytest.mark.asyncio
+    async def test_no_login_pending_is_invalid_state(self, tmp_path: Path) -> None:
+        session = _make_session(tmp_path)
+        session._state = SessionState.idle
         with pytest.raises(InvalidStateError):
+            await session.submit_2fa("123456")
+
+    @pytest.mark.asyncio
+    async def test_submit_2fa_without_api_raises_no_login_pending(
+        self, tmp_path: Path
+    ) -> None:
+        session = _make_session(tmp_path)
+        session._state = SessionState.authenticator
+        session._api = None
+        with pytest.raises(NoLoginPendingError):
             await session.submit_2fa("123456")
 
 

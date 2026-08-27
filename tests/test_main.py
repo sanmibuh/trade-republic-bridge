@@ -3,7 +3,7 @@
 import importlib.metadata
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import FastAPI
@@ -19,6 +19,14 @@ from tr_bridge.main import (
     _request_validation_error_handler,
     _unhandled_exception_handler,
     app,
+)
+from tr_bridge.session import (
+    CodeRejectedError,
+    LoginInProgressError,
+    NoLoginPendingError,
+    RateLimitedError,
+    SessionState,
+    TrUpstreamError,
 )
 
 
@@ -401,3 +409,188 @@ class TestDomainExceptionHandlers:
         assert resp.status_code == 409
         assert resp.headers["content-type"] == "application/problem+json"
         assert resp.json()["code"] == "invalid_state"
+
+
+class _FakeSession:
+    """Minimal stand-in for InstanceSession driving the login endpoints."""
+
+    def __init__(
+        self,
+        state: SessionState = SessionState.idle,
+        start_login: object | None = None,
+        submit_2fa: object | None = None,
+    ) -> None:
+        self.state = state
+        self.start_login = start_login or AsyncMock(return_value=state)
+        self.submit_2fa = submit_2fa or AsyncMock(return_value=None)
+
+
+def _client_with_session(session: object | None, cleanups: list) -> TestClient:
+    """Build a TestClient against ``app`` with a registry returning *session*.
+
+    Passing ``session=None`` makes ``registry.get`` raise
+    ``InstanceNotFoundError``. Registers teardown callbacks in *cleanups* so
+    patches and the client context are released after the test.
+    """
+    from tr_bridge.instance_registry import InstanceNotFoundError
+
+    registry = MagicMock()
+    if session is None:
+        registry.get.side_effect = InstanceNotFoundError("ghost")
+    else:
+        registry.get.return_value = session
+
+    mock_registry_cls = MagicMock()
+    instance = mock_registry_cls.return_value
+    instance.get = registry.get
+    instance.resume_all = AsyncMock(return_value=None)
+
+    mock_cfg = _make_mock_config(api_key="mykey")
+    ctx_config = patch("tr_bridge.main.Config")
+    ctx_registry = patch("tr_bridge.main.InstanceRegistry", mock_registry_cls)
+    cfg_cls = ctx_config.start()
+    cfg_cls.load.return_value = mock_cfg
+    ctx_registry.start()
+    cleanups.append(ctx_config.stop)
+    cleanups.append(ctx_registry.stop)
+
+    client = TestClient(app)
+    client.__enter__()
+    cleanups.append(lambda: client.__exit__(None, None, None))
+    return client
+
+
+@pytest.fixture
+def make_client():
+    """Yield a factory building login-endpoint clients with automatic teardown."""
+    cleanups: list = []
+
+    def _factory(session: object | None) -> TestClient:
+        return _client_with_session(session, cleanups)
+
+    yield _factory
+    for teardown in reversed(cleanups):
+        teardown()
+
+
+class TestStatusEndpoint:
+    def test_status_returns_name_and_state(self, make_client) -> None:
+        session = _FakeSession(state=SessionState.confirmed)
+        client = make_client(session)
+        resp = client.get("/instances/user1/status", headers={"X-API-Key": "mykey"})
+        assert resp.status_code == 200
+        assert resp.json() == {"name": "user1", "state": "confirmed"}
+
+    def test_status_unknown_instance_returns_404(self, make_client) -> None:
+        client = make_client(None)
+        resp = client.get("/instances/ghost/status", headers={"X-API-Key": "mykey"})
+        assert resp.status_code == 404
+        assert resp.json()["code"] == "instance_not_found"
+
+    def test_status_requires_api_key(self, make_client) -> None:
+        session = _FakeSession()
+        client = make_client(session)
+        resp = client.get("/instances/user1/status")
+        assert resp.status_code == 401
+
+
+class TestLoginEndpoint:
+    def test_login_returns_state(self, make_client) -> None:
+        session = _FakeSession(
+            start_login=AsyncMock(return_value=SessionState.authenticator)
+        )
+        client = make_client(session)
+        resp = client.post("/instances/user1/login", headers={"X-API-Key": "mykey"})
+        assert resp.status_code == 200
+        assert resp.json() == {"state": "authenticator"}
+
+    def test_login_unknown_instance_returns_404(self, make_client) -> None:
+        client = make_client(None)
+        resp = client.post("/instances/ghost/login", headers={"X-API-Key": "mykey"})
+        assert resp.status_code == 404
+
+    def test_login_in_progress_returns_409(self, make_client) -> None:
+        session = _FakeSession(
+            start_login=AsyncMock(side_effect=LoginInProgressError("busy"))
+        )
+        client = make_client(session)
+        resp = client.post("/instances/user1/login", headers={"X-API-Key": "mykey"})
+        assert resp.status_code == 409
+        assert resp.json()["code"] == "login_in_progress"
+
+    def test_login_rate_limited_returns_429(self, make_client) -> None:
+        session = _FakeSession(
+            start_login=AsyncMock(side_effect=RateLimitedError("slow down"))
+        )
+        client = make_client(session)
+        resp = client.post("/instances/user1/login", headers={"X-API-Key": "mykey"})
+        assert resp.status_code == 429
+        assert resp.json()["code"] == "rate_limited"
+
+    def test_login_upstream_error_returns_502(self, make_client) -> None:
+        session = _FakeSession(
+            start_login=AsyncMock(side_effect=TrUpstreamError("boom"))
+        )
+        client = make_client(session)
+        resp = client.post("/instances/user1/login", headers={"X-API-Key": "mykey"})
+        assert resp.status_code == 502
+        assert resp.json()["code"] == "tr_upstream_error"
+
+
+class TestLogin2faEndpoint:
+    def test_2fa_returns_confirmed_state(self, make_client) -> None:
+        session = _FakeSession(state=SessionState.confirmed)
+        client = make_client(session)
+        resp = client.post(
+            "/instances/user1/login/2fa",
+            headers={"X-API-Key": "mykey"},
+            json={"code": "123456"},
+        )
+        assert resp.status_code == 200
+        assert resp.json() == {"state": "confirmed"}
+        session.submit_2fa.assert_awaited_once_with("123456")
+
+    def test_2fa_missing_code_returns_422(self, make_client) -> None:
+        session = _FakeSession()
+        client = make_client(session)
+        resp = client.post(
+            "/instances/user1/login/2fa",
+            headers={"X-API-Key": "mykey"},
+            json={},
+        )
+        assert resp.status_code == 422
+
+    def test_2fa_code_rejected_returns_401(self, make_client) -> None:
+        session = _FakeSession(
+            submit_2fa=AsyncMock(side_effect=CodeRejectedError("bad code"))
+        )
+        client = make_client(session)
+        resp = client.post(
+            "/instances/user1/login/2fa",
+            headers={"X-API-Key": "mykey"},
+            json={"code": "000000"},
+        )
+        assert resp.status_code == 401
+        assert resp.json()["code"] == "code_rejected"
+
+    def test_2fa_no_login_pending_returns_409(self, make_client) -> None:
+        session = _FakeSession(
+            submit_2fa=AsyncMock(side_effect=NoLoginPendingError(SessionState.idle))
+        )
+        client = make_client(session)
+        resp = client.post(
+            "/instances/user1/login/2fa",
+            headers={"X-API-Key": "mykey"},
+            json={"code": "123456"},
+        )
+        assert resp.status_code == 409
+        assert resp.json()["code"] == "no_login_pending"
+
+    def test_2fa_unknown_instance_returns_404(self, make_client) -> None:
+        client = make_client(None)
+        resp = client.post(
+            "/instances/ghost/login/2fa",
+            headers={"X-API-Key": "mykey"},
+            json={"code": "123456"},
+        )
+        assert resp.status_code == 404
