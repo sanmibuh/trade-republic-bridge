@@ -1,5 +1,7 @@
 """Tests for tr_bridge.main — app wiring and global exception handler."""
 
+import importlib.metadata
+import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -148,6 +150,21 @@ class TestHealthEndpoint:
         assert "version" in body
         assert "pytr" in body["dependencies"]
         assert "python" in body["dependencies"]
+
+    def test_health_returns_correct_version_values(self) -> None:
+        """/health must return the actual service, pytr and python versions."""
+        with patch("tr_bridge.main.Config") as mock_cfg_cls:
+            mock_cfg_cls.load.return_value = MagicMock()
+            with TestClient(app) as client:
+                resp = client.get("/health")
+
+        body = resp.json()
+        expected_version = (
+            (Path(__file__).parent.parent / "VERSION").read_text().strip()
+        )
+        assert body["version"] == expected_version
+        assert body["dependencies"]["pytr"] == importlib.metadata.version("pytr")
+        assert body["dependencies"]["python"] == sys.version.split()[0]
 
     def test_health_does_not_require_x_api_key(self) -> None:
         """/health must return 200 even when X-API-Key is absent."""
