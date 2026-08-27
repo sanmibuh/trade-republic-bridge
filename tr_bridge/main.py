@@ -54,8 +54,13 @@ app = FastAPI(
 async def _auth_middleware(
     request: Request, call_next: Callable[[Request], Response]
 ) -> Response:
-    """Enforce X-API-Key on every request except paths in ``_PUBLIC_PATHS``."""
-    if request.url.path not in _PUBLIC_PATHS:
+    """Enforce X-API-Key on every request except paths in ``_PUBLIC_PATHS``.
+
+    The path is normalised by stripping a trailing slash before the lookup so
+    that liveness probes sent to ``/health/`` are not incorrectly rejected.
+    """
+    path = request.url.path.rstrip("/") or "/"
+    if path not in _PUBLIC_PATHS:
         try:
             check_api_key(request)
         except UnauthorizedException:

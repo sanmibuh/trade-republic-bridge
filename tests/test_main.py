@@ -155,6 +155,17 @@ class TestHealthEndpoint:
 
         assert resp.status_code == 200
 
+    def test_health_trailing_slash_is_not_rejected(self) -> None:
+        """/health/ with trailing slash must not be blocked by auth middleware."""
+        with patch("tr_bridge.main.Config") as mock_cfg_cls:
+            mock_cfg_cls.load.return_value = MagicMock()
+            with TestClient(app, follow_redirects=False) as client:
+                resp = client.get("/health/")
+
+        # Either a redirect (3xx) to /health or a 200 are acceptable;
+        # a 401 from the middleware is not.
+        assert resp.status_code != 401
+
 
 class TestUnauthorizedExceptionHandler:
     def test_unauthorized_exception_returns_401_problem_json(self) -> None:
