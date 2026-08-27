@@ -46,7 +46,32 @@ class InstanceRegistry:
     async def resume_all(self) -> None:
         """Attempt to resume all sessions concurrently.
 
+        Each instance is resumed independently: a failure on one instance is
+        logged and does not prevent the others from resuming or the service
+        from starting.
+
         Intended to be called once at startup inside the FastAPI lifespan.
         """
-        await asyncio.gather(*(session.resume() for session in self._sessions.values()))
-        logger.info("InstanceRegistry: resume_all complete.")
+        results = await asyncio.gather(
+            *(
+                self._resume_safe(name, session)
+                for name, session in self._sessions.items()
+            ),
+            return_exceptions=True,
+        )
+        failed = sum(1 for r in results if isinstance(r, BaseException))
+        if failed:
+            logger.warning(
+                "InstanceRegistry: resume_all complete — %d/%d instance(s) failed.",
+                failed,
+                len(self._sessions),
+            )
+        else:
+            logger.info("InstanceRegistry: resume_all complete.")
+
+    async def _resume_safe(self, name: str, session: InstanceSession) -> None:
+        """Resume *session*, catching and logging any unexpected exception."""
+        try:
+            await session.resume()
+        except Exception:
+            logger.exception("Instance %r: unexpected error during resume.", name)

@@ -65,3 +65,28 @@ class TestResume:
 
         for name in ["alice", "bob"]:
             registry.get(name).resume.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_resume_all_continues_when_one_instance_raises(self) -> None:
+        """A failure on one instance must not prevent others from resuming."""
+        cfg = _make_config(["alice", "bob"])
+        registry = InstanceRegistry(cfg)
+
+        registry.get("alice").resume = AsyncMock(side_effect=RuntimeError("disk error"))
+        registry.get("bob").resume = AsyncMock()
+
+        # Must not raise even though alice's resume fails.
+        await registry.resume_all()
+
+        registry.get("bob").resume.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_resume_all_does_not_raise_when_all_fail(self) -> None:
+        cfg = _make_config(["alice", "bob"])
+        registry = InstanceRegistry(cfg)
+
+        for name in ["alice", "bob"]:
+            registry.get(name).resume = AsyncMock(side_effect=OSError("read-only fs"))
+
+        # Service startup must survive all-instance resume failure.
+        await registry.resume_all()
