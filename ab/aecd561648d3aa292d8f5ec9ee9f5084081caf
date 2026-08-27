@@ -1,0 +1,19 @@
+tr_bridge/instance_registry.py
+  s_b97b54021c5ddb::t_4ce7e6447498bb 49-52,55-77
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "abaecd561648d3aa292d8f5ec9ee9f5084081caf",
+  "prompts": {},
+  "sessions": {
+    "s_b97b54021c5ddb": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fbc13b350ffePfN5sUdLKUalLB",
+        "model": "claude-sonnet-4.6"
+      },
+      "human_author": "David Belmez <sanmibuh@gmail.com>"
+    }
+  }
+}
