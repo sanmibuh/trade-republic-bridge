@@ -1,0 +1,19 @@
+tr_bridge/session.py
+  s_ef6043eaddf836::t_8db93ecc56dbbd 18,20,44-51,60-63,132-144,168,172,174,202-220
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "06e464b0466e0d3832aa0b0eefc1621b5b50819a",
+  "prompts": {},
+  "sessions": {
+    "s_ef6043eaddf836": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fbaa38a73ffeF93k5hSGkNO3z7",
+        "model": "claude-opus-4.8"
+      },
+      "human_author": "David Belmez <sanmibuh@gmail.com>"
+    }
+  }
+}
