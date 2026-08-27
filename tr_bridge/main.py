@@ -1,24 +1,27 @@
 """FastAPI application entry point."""
 
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from http import HTTPStatus
 from pathlib import Path
 
 import uvicorn
-from fastapi import APIRouter, FastAPI, Request
+from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import Response
 from starlette.exceptions import HTTPException
 
-from tr_bridge.auth import UnauthorizedException, require_api_key
+from tr_bridge.auth import UnauthorizedException, check_api_key
 from tr_bridge.config import Config
 from tr_bridge.errors import ProblemDetail, problem_response
 
 logger = logging.getLogger(__name__)
 
 _VERSION_FILE = Path(__file__).parent.parent / "VERSION"
+
+# Paths that bypass API-key authentication.
+_PUBLIC_PATHS: frozenset[str] = frozenset({"/health"})
 
 
 def _read_version() -> str:
@@ -45,6 +48,28 @@ app = FastAPI(
     redoc_url=None,
     openapi_url=None,
 )
+
+
+@app.middleware("http")
+async def _auth_middleware(
+    request: Request, call_next: Callable[[Request], Response]
+) -> Response:
+    """Enforce X-API-Key on every request except paths in ``_PUBLIC_PATHS``."""
+    if request.url.path not in _PUBLIC_PATHS:
+        try:
+            check_api_key(request)
+        except UnauthorizedException:
+            return problem_response(
+                ProblemDetail(
+                    status=401,
+                    code="unauthorized",
+                    title="Unauthorized",
+                    detail=(
+                        "Missing or invalid API key. Provide a valid X-API-Key header."
+                    ),
+                )
+            )
+    return await call_next(request)
 
 
 @app.exception_handler(UnauthorizedException)
@@ -116,19 +141,11 @@ async def health() -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Protected router — all routes below require a valid X-API-Key header.
-# New protected endpoints must be registered on this router BEFORE the
-# include_router() call at the bottom of this module.
+# Protected routes — register all authenticated endpoints directly on `app`.
+# The _auth_middleware above enforces X-API-Key for every path not listed in
+# _PUBLIC_PATHS, so any @app.get/post/... route defined here is protected
+# automatically without needing a separate router.
 # ---------------------------------------------------------------------------
-
-protected_router = APIRouter(dependencies=[require_api_key])
-
-# Register protected routes here:
-# @protected_router.get("/example")
-# async def example() -> dict: ...
-
-# include_router is called last so that all routes added above are mounted.
-app.include_router(protected_router)
 
 
 def start() -> None:

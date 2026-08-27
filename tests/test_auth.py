@@ -1,68 +1,45 @@
-"""Tests for tr_bridge.auth — X-API-Key dependency."""
+"""Tests for tr_bridge.auth — check_api_key validation."""
 
 from unittest.mock import MagicMock
 
-from fastapi import FastAPI
-from fastapi.responses import Response
-from fastapi.testclient import TestClient
+import pytest
 from starlette.requests import Request
 
-from tr_bridge.auth import UnauthorizedException, require_api_key
-from tr_bridge.errors import ProblemDetail, problem_response
+from tr_bridge.auth import UnauthorizedException, check_api_key
 
 
-def _make_test_app(api_key: str) -> FastAPI:
-    """Build a minimal app with the auth dependency and a protected route."""
-    test_app = FastAPI()
-
-    mock_cfg = MagicMock()
-    mock_cfg.api_key = api_key
-    test_app.state.config = mock_cfg
-
-    @test_app.exception_handler(UnauthorizedException)
-    async def _handler(request: Request, exc: UnauthorizedException) -> Response:
-        return problem_response(
-            ProblemDetail(
-                status=401,
-                code="unauthorized",
-                title="Unauthorized",
-                detail="Missing or invalid API key.",
-            )
-        )
-
-    @test_app.get("/protected", dependencies=[require_api_key])
-    async def _protected():
-        return {"ok": True}
-
-    return test_app
+def _make_request(api_key: str | None, config_key: str) -> Request:
+    """Build a Starlette Request with the given X-API-Key header and app config."""
+    mock_app = MagicMock()
+    mock_app.state.config.api_key = config_key
+    headers = []
+    if api_key is not None:
+        headers = [(b"x-api-key", api_key.encode())]
+    scope = {
+        "type": "http",
+        "method": "GET",
+        "path": "/",
+        "query_string": b"",
+        "headers": headers,
+        "app": mock_app,
+    }
+    return Request(scope)
 
 
-class TestRequireApiKey:
-    def test_valid_key_passes(self) -> None:
-        """A request with the correct X-API-Key header must succeed."""
-        client = TestClient(_make_test_app("secret"), raise_server_exceptions=False)
-        resp = client.get("/protected", headers={"X-API-Key": "secret"})
+class TestCheckApiKey:
+    def test_valid_key_does_not_raise(self) -> None:
+        """A matching X-API-Key header must not raise."""
+        request = _make_request(api_key="secret", config_key="secret")
+        check_api_key(request)  # must not raise
 
-        assert resp.status_code == 200
+    def test_missing_key_raises_unauthorized(self) -> None:
+        """An absent X-API-Key header must raise UnauthorizedException."""
+        request = _make_request(api_key=None, config_key="secret")
+        with pytest.raises(UnauthorizedException):
+            check_api_key(request)
 
-    def test_missing_key_returns_401(self) -> None:
-        """A request without the X-API-Key header must return 401."""
-        client = TestClient(_make_test_app("secret"), raise_server_exceptions=False)
-        resp = client.get("/protected")
-
-        assert resp.status_code == 401
-        assert resp.headers["content-type"] == "application/problem+json"
-        body = resp.json()
-        assert body["status"] == 401
-        assert body["code"] == "unauthorized"
-
-    def test_wrong_key_returns_401(self) -> None:
-        """A request with an incorrect X-API-Key header must return 401."""
-        client = TestClient(_make_test_app("secret"), raise_server_exceptions=False)
-        resp = client.get("/protected", headers={"X-API-Key": "wrong"})
-
-        assert resp.status_code == 401
-        assert resp.headers["content-type"] == "application/problem+json"
-        body = resp.json()
-        assert body["status"] == 401
-        assert body["code"] == "unauthorized"
+    def test_wrong_key_raises_unauthorized(self) -> None:
+        """An incorrect X-API-Key header must raise UnauthorizedException."""
+        request = _make_request(api_key="wrong", config_key="secret")
+        with pytest.raises(UnauthorizedException):
+            check_api_key(request)

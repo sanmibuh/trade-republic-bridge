@@ -6,14 +6,14 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import Response
 from fastapi.testclient import TestClient
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
 
 import tr_bridge.main as main_module
-from tr_bridge.auth import UnauthorizedException, require_api_key
+from tr_bridge.auth import UnauthorizedException
 from tr_bridge.main import (
+    _auth_middleware,
     _http_exception_handler,
     _request_validation_error_handler,
     _unauthorized_exception_handler,
@@ -177,47 +177,34 @@ class TestUnauthorizedExceptionHandler:
         assert body["code"] == "unauthorized"
 
 
-class TestAuthWiring:
-    """Integration tests that verify the auth dependency wiring pattern.
+class TestAuthMiddleware:
+    """Integration tests that verify the HTTP auth middleware wiring.
 
-    These tests build a fresh app that mirrors the structure of ``main.py``
-    (public ``/health`` + protected router) so they don't mutate global state
-    and are immune to FastAPI's eager route-copying behaviour.
+    A fresh app mirrors ``main.py``'s structure: middleware enforces X-API-Key
+    on all paths except ``/health``.  Using a fresh app avoids mutating global
+    state and keeps each test fully isolated.
     """
 
     def _make_app(self, api_key: str) -> FastAPI:
         """Return a wired app with ``app.state.config`` pre-populated."""
-        from fastapi import APIRouter
-
-        from tr_bridge.errors import ProblemDetail, problem_response
 
         test_app = FastAPI()
         mock_cfg = MagicMock()
         mock_cfg.api_key = api_key
         test_app.state.config = mock_cfg
 
-        @test_app.exception_handler(UnauthorizedException)
-        async def _handler(request: Request, exc: UnauthorizedException) -> Response:
-            return problem_response(
-                ProblemDetail(
-                    status=401,
-                    code="unauthorized",
-                    title="Unauthorized",
-                    detail="Missing or invalid API key.",
-                )
-            )
+        @test_app.middleware("http")
+        async def _auth(request: Request, call_next):
+            return await _auth_middleware(request, call_next)
 
         @test_app.get("/health")
         async def _health():
             return {"status": "ok"}
 
-        router = APIRouter(dependencies=[require_api_key])
-
-        @router.get("/protected")
+        @test_app.get("/protected")
         async def _protected():
             return {"ok": True}
 
-        test_app.include_router(router)
         return test_app
 
     def test_protected_route_without_key_returns_401(self) -> None:
@@ -241,7 +228,7 @@ class TestAuthWiring:
         assert resp.status_code == 200
 
     def test_health_is_public_while_protected_routes_require_key(self) -> None:
-        """``/health`` must be reachable without a key; protected routes must not."""
+        """``/health`` must be reachable without a key; other routes must not."""
         client = TestClient(self._make_app("testkey"), raise_server_exceptions=False)
 
         health_resp = client.get("/health")

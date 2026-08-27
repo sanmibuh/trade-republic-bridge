@@ -45,7 +45,7 @@ uvicorn tr_bridge.main:app --port 8000
 > **Note:** the app reads `/data/config.yml` at startup. Without it, the server will exit
 > immediately with a `ConfigError`. Create the file first (see [Configuration](#configuration)).
 
-Interactive API docs are available at `http://localhost:8000/docs`.
+Interactive API docs are not exposed. The service is an internal API protected by `X-API-Key`.
 
 ---
 
