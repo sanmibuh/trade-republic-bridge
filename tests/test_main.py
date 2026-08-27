@@ -6,18 +6,19 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
+from fastapi.responses import Response
 from fastapi.testclient import TestClient
 from starlette.exceptions import HTTPException
+from starlette.requests import Request
 
 import tr_bridge.main as main_module
-from tr_bridge.auth import UnauthorizedException
+from tr_bridge.auth import UnauthorizedException, require_api_key
 from tr_bridge.main import (
     _http_exception_handler,
     _request_validation_error_handler,
     _unauthorized_exception_handler,
     _unhandled_exception_handler,
     app,
-    protected_router,
 )
 
 
@@ -177,74 +178,91 @@ class TestUnauthorizedExceptionHandler:
 
 
 class TestAuthWiring:
-    """Integration tests that verify auth dependency wiring on the real app.
+    """Integration tests that verify the auth dependency wiring pattern.
 
-    A probe endpoint is registered on ``protected_router`` so that we can make
-    real requests through the full app stack and confirm:
-    - Routes on ``protected_router`` require a valid ``X-API-Key``.
-    - ``GET /health`` remains publicly accessible without any key.
+    These tests build a fresh app that mirrors the structure of ``main.py``
+    (public ``/health`` + protected router) so they don't mutate global state
+    and are immune to FastAPI's eager route-copying behaviour.
     """
 
-    @pytest.fixture(autouse=True)
-    def _register_probe(self) -> None:
-        """Add a temporary /_probe route to the protected router for this test."""
+    def _make_app(self, api_key: str) -> tuple[FastAPI, MagicMock]:
+        """Return a wired app and its matching mock config."""
+        from fastapi import APIRouter
 
-        @protected_router.get("/_probe")
-        async def _probe():
-            return {"probed": True}
+        from tr_bridge.errors import ProblemDetail, problem_response
+
+        test_app = FastAPI()
+        mock_cfg = MagicMock()
+        mock_cfg.api_key = api_key
+
+        @test_app.exception_handler(UnauthorizedException)
+        async def _handler(request: Request, exc: UnauthorizedException) -> Response:
+            return problem_response(
+                ProblemDetail(
+                    status=401,
+                    code="unauthorized",
+                    title="Unauthorized",
+                    detail="Missing or invalid API key.",
+                )
+            )
+
+        @test_app.get("/health")
+        async def _health():
+            return {"status": "ok"}
+
+        router = APIRouter(dependencies=[require_api_key])
+
+        @router.get("/protected")
+        async def _protected():
+            return {"ok": True}
+
+        test_app.include_router(router)
+        return test_app, mock_cfg
 
     def test_protected_route_without_key_returns_401(self) -> None:
-        mock_cfg = MagicMock()
-        mock_cfg.api_key = "testkey"
+        test_app, mock_cfg = self._make_app("testkey")
+        client = TestClient(test_app, raise_server_exceptions=False)
+
         with patch("tr_bridge.auth.Config") as mock_cfg_cls:
             mock_cfg_cls.load.return_value = mock_cfg
-            with patch("tr_bridge.main.Config") as mock_main_cls:
-                mock_main_cls.load.return_value = mock_cfg
-                with TestClient(app) as client:
-                    resp = client.get("/_probe")
+            resp = client.get("/protected")
 
         assert resp.status_code == 401
         assert resp.headers["content-type"] == "application/problem+json"
         assert resp.json()["code"] == "unauthorized"
 
     def test_protected_route_with_wrong_key_returns_401(self) -> None:
-        mock_cfg = MagicMock()
-        mock_cfg.api_key = "testkey"
+        test_app, mock_cfg = self._make_app("testkey")
+        client = TestClient(test_app, raise_server_exceptions=False)
+
         with patch("tr_bridge.auth.Config") as mock_cfg_cls:
             mock_cfg_cls.load.return_value = mock_cfg
-            with patch("tr_bridge.main.Config") as mock_main_cls:
-                mock_main_cls.load.return_value = mock_cfg
-                with TestClient(app) as client:
-                    resp = client.get("/_probe", headers={"X-API-Key": "wrong"})
+            resp = client.get("/protected", headers={"X-API-Key": "wrong"})
 
         assert resp.status_code == 401
 
     def test_protected_route_with_valid_key_returns_200(self) -> None:
-        mock_cfg = MagicMock()
-        mock_cfg.api_key = "testkey"
+        test_app, mock_cfg = self._make_app("testkey")
+        client = TestClient(test_app, raise_server_exceptions=False)
+
         with patch("tr_bridge.auth.Config") as mock_cfg_cls:
             mock_cfg_cls.load.return_value = mock_cfg
-            with patch("tr_bridge.main.Config") as mock_main_cls:
-                mock_main_cls.load.return_value = mock_cfg
-                with TestClient(app) as client:
-                    resp = client.get("/_probe", headers={"X-API-Key": "testkey"})
+            resp = client.get("/protected", headers={"X-API-Key": "testkey"})
 
         assert resp.status_code == 200
 
     def test_health_is_public_while_protected_routes_require_key(self) -> None:
-        """Health endpoint must be reachable while protected routes are locked."""
-        mock_cfg = MagicMock()
-        mock_cfg.api_key = "testkey"
+        """``/health`` must be reachable without a key; protected routes must not."""
+        test_app, mock_cfg = self._make_app("testkey")
+        client = TestClient(test_app, raise_server_exceptions=False)
+
         with patch("tr_bridge.auth.Config") as mock_cfg_cls:
             mock_cfg_cls.load.return_value = mock_cfg
-            with patch("tr_bridge.main.Config") as mock_main_cls:
-                mock_main_cls.load.return_value = mock_cfg
-                with TestClient(app) as client:
-                    health_resp = client.get("/health")
-                    probe_resp = client.get("/_probe")
+            health_resp = client.get("/health")
+            protected_resp = client.get("/protected")
 
         assert health_resp.status_code == 200
-        assert probe_resp.status_code == 401
+        assert protected_resp.status_code == 401
 
 
 class TestStart:
