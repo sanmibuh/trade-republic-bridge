@@ -30,8 +30,8 @@ def _read_version() -> str:
 
 @asynccontextmanager
 async def _lifespan(application: FastAPI) -> AsyncIterator[None]:
-    """Load and validate configuration on startup; fail fast if invalid."""
-    Config.load()
+    """Load and validate configuration on startup; store it on app.state."""
+    application.state.config = Config.load()
     yield
 
 
@@ -40,6 +40,10 @@ app = FastAPI(
     version=_read_version(),
     description="Thin HTTP wrapper around pytr for Trade Republic session management.",
     lifespan=_lifespan,
+    # Disable built-in doc UIs — this is an internal API protected by X-API-Key.
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None,
 )
 
 
@@ -112,10 +116,18 @@ async def health() -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Protected router — all routes below require a valid X-API-Key header
+# Protected router — all routes below require a valid X-API-Key header.
+# New protected endpoints must be registered on this router BEFORE the
+# include_router() call at the bottom of this module.
 # ---------------------------------------------------------------------------
 
 protected_router = APIRouter(dependencies=[require_api_key])
+
+# Register protected routes here:
+# @protected_router.get("/example")
+# async def example() -> dict: ...
+
+# include_router is called last so that all routes added above are mounted.
 app.include_router(protected_router)
 
 

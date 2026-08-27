@@ -185,8 +185,8 @@ class TestAuthWiring:
     and are immune to FastAPI's eager route-copying behaviour.
     """
 
-    def _make_app(self, api_key: str) -> tuple[FastAPI, MagicMock]:
-        """Return a wired app and its matching mock config."""
+    def _make_app(self, api_key: str) -> FastAPI:
+        """Return a wired app with ``app.state.config`` pre-populated."""
         from fastapi import APIRouter
 
         from tr_bridge.errors import ProblemDetail, problem_response
@@ -194,6 +194,7 @@ class TestAuthWiring:
         test_app = FastAPI()
         mock_cfg = MagicMock()
         mock_cfg.api_key = api_key
+        test_app.state.config = mock_cfg
 
         @test_app.exception_handler(UnauthorizedException)
         async def _handler(request: Request, exc: UnauthorizedException) -> Response:
@@ -217,49 +218,34 @@ class TestAuthWiring:
             return {"ok": True}
 
         test_app.include_router(router)
-        return test_app, mock_cfg
+        return test_app
 
     def test_protected_route_without_key_returns_401(self) -> None:
-        test_app, mock_cfg = self._make_app("testkey")
-        client = TestClient(test_app, raise_server_exceptions=False)
-
-        with patch("tr_bridge.auth.Config") as mock_cfg_cls:
-            mock_cfg_cls.load.return_value = mock_cfg
-            resp = client.get("/protected")
+        client = TestClient(self._make_app("testkey"), raise_server_exceptions=False)
+        resp = client.get("/protected")
 
         assert resp.status_code == 401
         assert resp.headers["content-type"] == "application/problem+json"
         assert resp.json()["code"] == "unauthorized"
 
     def test_protected_route_with_wrong_key_returns_401(self) -> None:
-        test_app, mock_cfg = self._make_app("testkey")
-        client = TestClient(test_app, raise_server_exceptions=False)
-
-        with patch("tr_bridge.auth.Config") as mock_cfg_cls:
-            mock_cfg_cls.load.return_value = mock_cfg
-            resp = client.get("/protected", headers={"X-API-Key": "wrong"})
+        client = TestClient(self._make_app("testkey"), raise_server_exceptions=False)
+        resp = client.get("/protected", headers={"X-API-Key": "wrong"})
 
         assert resp.status_code == 401
 
     def test_protected_route_with_valid_key_returns_200(self) -> None:
-        test_app, mock_cfg = self._make_app("testkey")
-        client = TestClient(test_app, raise_server_exceptions=False)
-
-        with patch("tr_bridge.auth.Config") as mock_cfg_cls:
-            mock_cfg_cls.load.return_value = mock_cfg
-            resp = client.get("/protected", headers={"X-API-Key": "testkey"})
+        client = TestClient(self._make_app("testkey"), raise_server_exceptions=False)
+        resp = client.get("/protected", headers={"X-API-Key": "testkey"})
 
         assert resp.status_code == 200
 
     def test_health_is_public_while_protected_routes_require_key(self) -> None:
         """``/health`` must be reachable without a key; protected routes must not."""
-        test_app, mock_cfg = self._make_app("testkey")
-        client = TestClient(test_app, raise_server_exceptions=False)
+        client = TestClient(self._make_app("testkey"), raise_server_exceptions=False)
 
-        with patch("tr_bridge.auth.Config") as mock_cfg_cls:
-            mock_cfg_cls.load.return_value = mock_cfg
-            health_resp = client.get("/health")
-            protected_resp = client.get("/protected")
+        health_resp = client.get("/health")
+        protected_resp = client.get("/protected")
 
         assert health_resp.status_code == 200
         assert protected_resp.status_code == 401
