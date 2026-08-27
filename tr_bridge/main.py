@@ -12,6 +12,7 @@ import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import Response
+from pydantic import BaseModel
 from starlette.exceptions import HTTPException
 
 from tr_bridge.auth import UnauthorizedException, check_api_key
@@ -123,22 +124,43 @@ async def _unhandled_exception_handler(request: Request, exc: Exception) -> Resp
 
 
 # ---------------------------------------------------------------------------
+# Response models
+# ---------------------------------------------------------------------------
+
+
+class DependenciesModel(BaseModel):
+    pytr: str
+    python: str
+
+
+class HealthResponse(BaseModel):
+    status: str
+    service: str
+    version: str
+    dependencies: DependenciesModel
+
+
+class InstancesResponse(BaseModel):
+    instances: list[str]
+
+
+# ---------------------------------------------------------------------------
 # Public routes (no authentication required)
 # ---------------------------------------------------------------------------
 
 
 @app.get("/health", tags=["ops"])
-async def health() -> dict:
+async def health() -> HealthResponse:
     """Liveness probe — returns 200 OK with no authentication required."""
-    return {
-        "status": "ok",
-        "service": "tr-bridge",
-        "version": _read_version(),
-        "dependencies": {
-            "pytr": importlib.metadata.version("pytr"),
-            "python": sys.version.split()[0],
-        },
-    }
+    return HealthResponse(
+        status="ok",
+        service="tr-bridge",
+        version=_read_version(),
+        dependencies=DependenciesModel(
+            pytr=importlib.metadata.version("pytr"),
+            python=sys.version.split()[0],
+        ),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -147,6 +169,13 @@ async def health() -> dict:
 # _PUBLIC_PATHS, so any @app.get/post/... route defined here is protected
 # automatically without needing a separate router.
 # ---------------------------------------------------------------------------
+
+
+@app.get("/instances", tags=["instances"])
+async def get_instances(request: Request) -> InstancesResponse:
+    """List all configured instance names — requires X-API-Key."""
+    config: Config = request.app.state.config
+    return InstancesResponse(instances=config.instance_names)
 
 
 def start() -> None:
