@@ -190,7 +190,8 @@ class TestTimeout:
     async def test_timeout_does_not_fire_after_confirmation(
         self, tmp_path: Path
     ) -> None:
-        session = _make_session(tmp_path, tfa_timeout=0)
+        # Use a large timeout so it cannot fire before submit_2fa completes.
+        session = _make_session(tmp_path, tfa_timeout=10)
         api = _mock_api()
         session._api = api
         session._state = SessionState.authenticator

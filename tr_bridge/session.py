@@ -151,6 +151,8 @@ class InstanceSession:
         """
         if self._state != SessionState.authenticator:
             raise InvalidStateError(self._state)
+        if self._api is None:
+            raise InvalidStateError(self._state)
 
         api = self._api
         loop = asyncio.get_running_loop()
@@ -216,6 +218,18 @@ class InstanceSession:
         self._push_task = None
 
     async def _run_push_confirmation(self) -> None:
+        # NOTE: cancelling this asyncio task does NOT stop the underlying
+        # run_in_executor thread — complete_weblogin() will run to completion
+        # (or raise) regardless. This is an inherent limitation of
+        # run_in_executor with blocking callables.
+        if self._api is None:
+            logger.error(
+                "Instance %r: _run_push_confirmation called with no API; aborting.",
+                self._config.name,
+            )
+            self._state = SessionState.failed
+            self._timeout_task = None
+            return
         loop = asyncio.get_running_loop()
         try:
             await loop.run_in_executor(None, self._api.complete_weblogin)
