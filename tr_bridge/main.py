@@ -3,7 +3,7 @@
 import importlib.metadata
 import logging
 import sys
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from http import HTTPStatus
 from pathlib import Path
@@ -54,7 +54,7 @@ app = FastAPI(
 
 @app.middleware("http")
 async def _auth_middleware(
-    request: Request, call_next: Callable[[Request], Response]
+    request: Request, call_next: Callable[[Request], Awaitable[Response]]
 ) -> Response:
     """Enforce X-API-Key on every request except paths in ``_PUBLIC_PATHS``.
 
@@ -77,20 +77,6 @@ async def _auth_middleware(
                 )
             )
     return await call_next(request)
-
-
-@app.exception_handler(UnauthorizedException)
-async def _unauthorized_exception_handler(
-    request: Request, exc: UnauthorizedException
-) -> Response:
-    return problem_response(
-        ProblemDetail(
-            status=401,
-            code="unauthorized",
-            title="Unauthorized",
-            detail="Missing or invalid API key. Provide a valid X-API-Key header.",
-        )
-    )
 
 
 @app.exception_handler(HTTPException)

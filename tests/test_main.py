@@ -11,12 +11,10 @@ from starlette.exceptions import HTTPException
 from starlette.requests import Request
 
 import tr_bridge.main as main_module
-from tr_bridge.auth import UnauthorizedException
 from tr_bridge.main import (
     _auth_middleware,
     _http_exception_handler,
     _request_validation_error_handler,
-    _unauthorized_exception_handler,
     _unhandled_exception_handler,
     app,
 )
@@ -170,27 +168,6 @@ class TestHealthEndpoint:
         # Either a redirect (3xx) to /health or a 200 are acceptable;
         # a 401 from the middleware is not.
         assert resp.status_code != 401
-
-
-class TestUnauthorizedExceptionHandler:
-    def test_unauthorized_exception_returns_401_problem_json(self) -> None:
-        test_app = FastAPI()
-        test_app.add_exception_handler(
-            UnauthorizedException, _unauthorized_exception_handler
-        )
-
-        @test_app.get("/_test_auth")
-        async def _auth_route():
-            raise UnauthorizedException
-
-        client = TestClient(test_app, raise_server_exceptions=False)
-        resp = client.get("/_test_auth")
-
-        assert resp.status_code == 401
-        assert resp.headers["content-type"] == "application/problem+json"
-        body = resp.json()
-        assert body["status"] == 401
-        assert body["code"] == "unauthorized"
 
 
 class TestAuthMiddleware:
