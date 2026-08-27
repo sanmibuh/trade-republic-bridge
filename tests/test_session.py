@@ -1,0 +1,227 @@
+"""Tests for tr_bridge.session — InstanceSession state machine."""
+
+from __future__ import annotations
+
+import asyncio
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from tr_bridge.config import InstanceConfig
+from tr_bridge.session import (
+    CodeRejectedError,
+    InstanceSession,
+    InvalidStateError,
+    LoginInProgressError,
+    SessionState,
+)
+
+_INSTANCE = InstanceConfig(name="user1", phone="+49123456789", pin="1234")
+_TFA_TIMEOUT = 120
+
+
+def _make_session(tmp_path: Path, **kwargs) -> InstanceSession:
+    defaults: dict = {
+        "config": _INSTANCE,
+        "session_dir": str(tmp_path / "tr_session_user1"),
+        "tfa_timeout": _TFA_TIMEOUT,
+    }
+    defaults.update(kwargs)
+    return InstanceSession(**defaults)
+
+
+def _mock_api(
+    resume_returns: bool = False,
+    needs_authenticator: bool = False,
+    complete_raises: Exception | None = None,
+) -> MagicMock:
+    api = MagicMock()
+    api.resume_websession.return_value = resume_returns
+    api.weblogin_needs_authenticator = needs_authenticator
+    api.initiate_weblogin.return_value = 120
+    if complete_raises:
+        api.complete_weblogin.side_effect = complete_raises
+    else:
+        api.complete_weblogin.return_value = None
+    return api
+
+
+class TestInitialState:
+    def test_initial_state_is_idle(self, tmp_path: Path) -> None:
+        session = _make_session(tmp_path)
+        assert session.state == SessionState.idle
+
+
+class TestResume:
+    @pytest.mark.asyncio
+    async def test_resume_sets_confirmed_when_session_valid(
+        self, tmp_path: Path
+    ) -> None:
+        session = _make_session(tmp_path)
+        api = _mock_api(resume_returns=True)
+        with patch("tr_bridge.session.TradeRepublicApi", return_value=api):
+            await session.resume()
+        assert session.state == SessionState.confirmed
+
+    @pytest.mark.asyncio
+    async def test_resume_stays_idle_when_session_invalid(self, tmp_path: Path) -> None:
+        session = _make_session(tmp_path)
+        api = _mock_api(resume_returns=False)
+        with patch("tr_bridge.session.TradeRepublicApi", return_value=api):
+            await session.resume()
+        assert session.state == SessionState.idle
+
+
+class TestStartLogin:
+    @pytest.mark.asyncio
+    async def test_start_login_confirms_when_resume_succeeds(
+        self, tmp_path: Path
+    ) -> None:
+        session = _make_session(tmp_path)
+        api = _mock_api(resume_returns=True)
+        with patch("tr_bridge.session.TradeRepublicApi", return_value=api):
+            state = await session.start_login()
+        assert state == SessionState.confirmed
+        assert session.state == SessionState.confirmed
+
+    @pytest.mark.asyncio
+    async def test_start_login_goes_authenticator_when_needed(
+        self, tmp_path: Path
+    ) -> None:
+        session = _make_session(tmp_path)
+        api = _mock_api(resume_returns=False, needs_authenticator=True)
+        with patch("tr_bridge.session.TradeRepublicApi", return_value=api):
+            state = await session.start_login()
+        assert state == SessionState.authenticator
+        assert session.state == SessionState.authenticator
+
+    @pytest.mark.asyncio
+    async def test_start_login_goes_push_when_no_authenticator(
+        self, tmp_path: Path
+    ) -> None:
+        session = _make_session(tmp_path)
+        api = _mock_api(resume_returns=False, needs_authenticator=False)
+        with patch("tr_bridge.session.TradeRepublicApi", return_value=api):
+            state = await session.start_login()
+        assert state == SessionState.push
+        assert session.state == SessionState.push
+
+    @pytest.mark.asyncio
+    async def test_concurrent_login_raises_409_from_authenticator(
+        self, tmp_path: Path
+    ) -> None:
+        session = _make_session(tmp_path)
+        session._state = SessionState.authenticator
+        with pytest.raises(LoginInProgressError):
+            await session.start_login()
+
+    @pytest.mark.asyncio
+    async def test_concurrent_login_raises_409_from_push(self, tmp_path: Path) -> None:
+        session = _make_session(tmp_path)
+        session._state = SessionState.push
+        with pytest.raises(LoginInProgressError):
+            await session.start_login()
+
+
+class TestSubmit2FA:
+    @pytest.mark.asyncio
+    async def test_submit_2fa_confirms_session(self, tmp_path: Path) -> None:
+        session = _make_session(tmp_path)
+        api = _mock_api()
+        session._api = api
+        session._state = SessionState.authenticator
+        await session.submit_2fa("123456")
+        assert session.state == SessionState.confirmed
+        api.complete_weblogin.assert_called_once_with("123456")
+
+    @pytest.mark.asyncio
+    async def test_submit_2fa_raises_code_rejected_on_wrong_code(
+        self, tmp_path: Path
+    ) -> None:
+        session = _make_session(tmp_path)
+        api = _mock_api(complete_raises=ValueError("wrong code"))
+        session._api = api
+        session._state = SessionState.authenticator
+        with pytest.raises(CodeRejectedError):
+            await session.submit_2fa("000000")
+        assert session.state == SessionState.authenticator
+
+    @pytest.mark.asyncio
+    async def test_submit_2fa_wrong_state_raises_invalid_state(
+        self, tmp_path: Path
+    ) -> None:
+        session = _make_session(tmp_path)
+        session._state = SessionState.idle
+        with pytest.raises(InvalidStateError):
+            await session.submit_2fa("123456")
+
+
+class TestTimeout:
+    @pytest.mark.asyncio
+    async def test_timeout_transitions_authenticator_to_failed(
+        self, tmp_path: Path
+    ) -> None:
+        session = _make_session(tmp_path, tfa_timeout=0)
+        api = _mock_api(resume_returns=False, needs_authenticator=True)
+        with patch("tr_bridge.session.TradeRepublicApi", return_value=api):
+            await session.start_login()
+        await asyncio.sleep(0.05)
+        assert session.state == SessionState.failed
+
+    @pytest.mark.asyncio
+    async def test_timeout_transitions_push_to_failed(self, tmp_path: Path) -> None:
+        import time
+
+        session = _make_session(tmp_path, tfa_timeout=0)
+        api = _mock_api(resume_returns=False, needs_authenticator=False)
+
+        def _blocking_complete(*_args):
+            time.sleep(10)
+
+        api.complete_weblogin.side_effect = _blocking_complete
+        with patch("tr_bridge.session.TradeRepublicApi", return_value=api):
+            await session.start_login()
+        await asyncio.sleep(0.05)
+        assert session.state == SessionState.failed
+
+    @pytest.mark.asyncio
+    async def test_timeout_does_not_fire_after_confirmation(
+        self, tmp_path: Path
+    ) -> None:
+        session = _make_session(tmp_path, tfa_timeout=0)
+        api = _mock_api()
+        session._api = api
+        session._state = SessionState.authenticator
+        session._schedule_timeout()
+        await session.submit_2fa("123456")
+        await asyncio.sleep(0.05)
+        assert session.state == SessionState.confirmed
+
+
+class TestPushConfirmation:
+    @pytest.mark.asyncio
+    async def test_push_transitions_to_confirmed_after_approval(
+        self, tmp_path: Path
+    ) -> None:
+        session = _make_session(tmp_path, tfa_timeout=120)
+        api = _mock_api(resume_returns=False, needs_authenticator=False)
+        with patch("tr_bridge.session.TradeRepublicApi", return_value=api):
+            await session.start_login()
+        await asyncio.sleep(0.05)
+        assert session.state == SessionState.confirmed
+
+    @pytest.mark.asyncio
+    async def test_push_transitions_to_failed_on_api_error(
+        self, tmp_path: Path
+    ) -> None:
+        session = _make_session(tmp_path, tfa_timeout=120)
+        api = _mock_api(
+            resume_returns=False,
+            needs_authenticator=False,
+            complete_raises=ValueError("rejected"),
+        )
+        with patch("tr_bridge.session.TradeRepublicApi", return_value=api):
+            await session.start_login()
+        await asyncio.sleep(0.05)
+        assert session.state == SessionState.failed

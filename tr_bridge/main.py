@@ -18,6 +18,7 @@ from starlette.exceptions import HTTPException
 from tr_bridge.auth import UnauthorizedException, check_api_key
 from tr_bridge.config import Config
 from tr_bridge.errors import ProblemDetail, problem_response
+from tr_bridge.instance_registry import InstanceRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +38,11 @@ def _read_version() -> str:
 @asynccontextmanager
 async def _lifespan(application: FastAPI) -> AsyncIterator[None]:
     """Load and validate configuration on startup; store it on app.state."""
-    application.state.config = Config.load()
+    config = Config.load()
+    application.state.config = config
+    registry = InstanceRegistry(config)
+    application.state.registry = registry
+    await registry.resume_all()
     yield
 
 

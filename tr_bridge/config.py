@@ -16,6 +16,7 @@ _INSTANCE_NAME_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
 
 CONFIG_PATH = "/data/config.yml"
 _DATA_ROOT = "/data"
+_DEFAULT_TFA_TIMEOUT = 120
 
 
 class ConfigError(Exception):
@@ -37,6 +38,7 @@ class Config:
 
     api_key: str
     instances: list[InstanceConfig]
+    tfa_timeout: int = _DEFAULT_TFA_TIMEOUT
 
     # ------------------------------------------------------------------
     # Factories
@@ -57,7 +59,8 @@ class Config:
         raw = cls._read_yaml(path)
         api_key = cls._require_str(raw, "api_key")
         instances = cls._parse_instances(raw)
-        return cls(api_key=api_key, instances=instances)
+        tfa_timeout = cls._parse_tfa_timeout(raw)
+        return cls(api_key=api_key, instances=instances, tfa_timeout=tfa_timeout)
 
     # ------------------------------------------------------------------
     # Helpers
@@ -132,6 +135,15 @@ class Config:
                 raise ConfigError(f"Duplicate instance name: {name!r}")
             seen.add(name)
         return instances
+
+    @classmethod
+    def _parse_tfa_timeout(cls, raw: dict) -> int:
+        value = raw.get("tfa_timeout", _DEFAULT_TFA_TIMEOUT)
+        if not isinstance(value, int) or value <= 0:
+            raise ConfigError(
+                "Config field 'tfa_timeout' must be a positive integer (seconds)"
+            )
+        return value
 
     @classmethod
     def _parse_instance(cls, item: dict) -> InstanceConfig:
