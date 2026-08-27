@@ -57,6 +57,8 @@ The service reads `/data/config.yml` on startup and writes session files under `
 # config.yml
 api_key: "changeme"           # secret key required in X-API-Key header
 
+tfa_timeout: 120              # seconds to wait for 2FA / push confirmation (default: 120)
+
 instances:
   - name: user1               # session subdirectory name; must match ^[a-zA-Z0-9_-]+$
     phone: "+49123456789"     # Trade Republic phone number

@@ -308,3 +308,96 @@ class TestInstancesEndpoint:
                 resp = client.get("/instances", headers={"X-API-Key": "wrong"})
 
         assert resp.status_code == 401
+
+
+class TestDomainExceptionHandlers:
+    """Verify that domain errors are translated to RFC 9457 responses."""
+
+    def _make_app_with_handlers(self) -> "FastAPI":
+        from fastapi import FastAPI
+
+        from tr_bridge.instance_registry import InstanceNotFoundError
+        from tr_bridge.main import (
+            _code_rejected_handler,
+            _instance_not_found_handler,
+            _invalid_state_handler,
+            _login_in_progress_handler,
+        )
+        from tr_bridge.session import (
+            CodeRejectedError,
+            InvalidStateError,
+            LoginInProgressError,
+            SessionState,
+        )
+
+        test_app = FastAPI()
+        test_app.add_exception_handler(
+            InstanceNotFoundError, _instance_not_found_handler
+        )
+        test_app.add_exception_handler(LoginInProgressError, _login_in_progress_handler)
+        test_app.add_exception_handler(CodeRejectedError, _code_rejected_handler)
+        test_app.add_exception_handler(InvalidStateError, _invalid_state_handler)
+
+        @test_app.get("/_not_found")
+        async def _raise_not_found():
+            raise InstanceNotFoundError("user1")
+
+        @test_app.get("/_in_progress")
+        async def _raise_in_progress():
+            raise LoginInProgressError("already running")
+
+        @test_app.get("/_code_rejected")
+        async def _raise_code_rejected():
+            raise CodeRejectedError("bad code")
+
+        @test_app.get("/_invalid_state")
+        async def _raise_invalid_state():
+            raise InvalidStateError(SessionState.idle)
+
+        return test_app
+
+    def test_instance_not_found_returns_404_problem_json(self) -> None:
+        from fastapi.testclient import TestClient
+
+        client = TestClient(
+            self._make_app_with_handlers(), raise_server_exceptions=False
+        )
+        resp = client.get("/_not_found")
+        assert resp.status_code == 404
+        assert resp.headers["content-type"] == "application/problem+json"
+        body = resp.json()
+        assert body["code"] == "instance_not_found"
+        assert "user1" in body["detail"]
+
+    def test_login_in_progress_returns_409_problem_json(self) -> None:
+        from fastapi.testclient import TestClient
+
+        client = TestClient(
+            self._make_app_with_handlers(), raise_server_exceptions=False
+        )
+        resp = client.get("/_in_progress")
+        assert resp.status_code == 409
+        assert resp.headers["content-type"] == "application/problem+json"
+        assert resp.json()["code"] == "login_in_progress"
+
+    def test_code_rejected_returns_401_problem_json(self) -> None:
+        from fastapi.testclient import TestClient
+
+        client = TestClient(
+            self._make_app_with_handlers(), raise_server_exceptions=False
+        )
+        resp = client.get("/_code_rejected")
+        assert resp.status_code == 401
+        assert resp.headers["content-type"] == "application/problem+json"
+        assert resp.json()["code"] == "code_rejected"
+
+    def test_invalid_state_returns_409_problem_json(self) -> None:
+        from fastapi.testclient import TestClient
+
+        client = TestClient(
+            self._make_app_with_handlers(), raise_server_exceptions=False
+        )
+        resp = client.get("/_invalid_state")
+        assert resp.status_code == 409
+        assert resp.headers["content-type"] == "application/problem+json"
+        assert resp.json()["code"] == "invalid_state"
