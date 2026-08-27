@@ -403,3 +403,79 @@ class TestInstanceConfig:
         assert inst.name == "u1"
         assert inst.phone == "+491"
         assert inst.pin == "0000"
+
+
+class TestTfaTimeout:
+    def test_default_tfa_timeout_when_not_specified(self, tmp_path) -> None:
+        path = _write_config(
+            tmp_path,
+            """
+            api_key: "secret"
+            instances:
+              - name: user1
+                phone: "+49123456789"
+                pin: "1234"
+            """,
+        )
+        config = Config.from_file(path)
+        assert config.tfa_timeout == 120
+
+    def test_custom_tfa_timeout_is_loaded(self, tmp_path) -> None:
+        path = _write_config(
+            tmp_path,
+            """
+            api_key: "secret"
+            tfa_timeout: 300
+            instances:
+              - name: user1
+                phone: "+49123456789"
+                pin: "1234"
+            """,
+        )
+        config = Config.from_file(path)
+        assert config.tfa_timeout == 300
+
+    def test_tfa_timeout_zero_raises_config_error(self, tmp_path) -> None:
+        path = _write_config(
+            tmp_path,
+            """
+            api_key: "secret"
+            tfa_timeout: 0
+            instances:
+              - name: user1
+                phone: "+49123456789"
+                pin: "1234"
+            """,
+        )
+        with pytest.raises(ConfigError, match="tfa_timeout"):
+            Config.from_file(path)
+
+    def test_tfa_timeout_negative_raises_config_error(self, tmp_path) -> None:
+        path = _write_config(
+            tmp_path,
+            """
+            api_key: "secret"
+            tfa_timeout: -5
+            instances:
+              - name: user1
+                phone: "+49123456789"
+                pin: "1234"
+            """,
+        )
+        with pytest.raises(ConfigError, match="tfa_timeout"):
+            Config.from_file(path)
+
+    def test_tfa_timeout_string_raises_config_error(self, tmp_path) -> None:
+        path = _write_config(
+            tmp_path,
+            """
+            api_key: "secret"
+            tfa_timeout: "fast"
+            instances:
+              - name: user1
+                phone: "+49123456789"
+                pin: "1234"
+            """,
+        )
+        with pytest.raises(ConfigError, match="tfa_timeout"):
+            Config.from_file(path)

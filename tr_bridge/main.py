@@ -18,7 +18,8 @@ from starlette.exceptions import HTTPException
 from tr_bridge.auth import UnauthorizedException, check_api_key
 from tr_bridge.config import Config
 from tr_bridge.errors import ProblemDetail, problem_response
-from tr_bridge.instance_registry import InstanceRegistry
+from tr_bridge.instance_registry import InstanceNotFoundError, InstanceRegistry
+from tr_bridge.session import CodeRejectedError, InvalidStateError, LoginInProgressError
 
 logger = logging.getLogger(__name__)
 
@@ -124,6 +125,58 @@ async def _unhandled_exception_handler(request: Request, exc: Exception) -> Resp
             code="internal_error",
             title="Internal server error",
             detail="An unexpected error occurred.",
+        )
+    )
+
+
+@app.exception_handler(InstanceNotFoundError)
+async def _instance_not_found_handler(
+    request: Request, exc: InstanceNotFoundError
+) -> Response:
+    return problem_response(
+        ProblemDetail(
+            status=404,
+            code="instance_not_found",
+            title="Instance not found",
+            detail=f"No instance named {exc.name!r} is configured.",
+        )
+    )
+
+
+@app.exception_handler(LoginInProgressError)
+async def _login_in_progress_handler(
+    request: Request, exc: LoginInProgressError
+) -> Response:
+    return problem_response(
+        ProblemDetail(
+            status=409,
+            code="login_in_progress",
+            title="Login already in progress",
+            detail=str(exc),
+        )
+    )
+
+
+@app.exception_handler(CodeRejectedError)
+async def _code_rejected_handler(request: Request, exc: CodeRejectedError) -> Response:
+    return problem_response(
+        ProblemDetail(
+            status=401,
+            code="code_rejected",
+            title="2FA code rejected",
+            detail=str(exc),
+        )
+    )
+
+
+@app.exception_handler(InvalidStateError)
+async def _invalid_state_handler(request: Request, exc: InvalidStateError) -> Response:
+    return problem_response(
+        ProblemDetail(
+            status=409,
+            code="invalid_state",
+            title="Operation not valid in current state",
+            detail=str(exc),
         )
     )
 

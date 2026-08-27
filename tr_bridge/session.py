@@ -80,7 +80,7 @@ class InstanceSession:
         Intended to be called once at startup.
         """
         api = self._build_api()
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         success: bool = await loop.run_in_executor(None, api.resume_websession)
         if success:
             self._api = api
@@ -113,7 +113,7 @@ class InstanceSession:
                 )
 
             api = self._build_api()
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
 
             success: bool = await loop.run_in_executor(None, api.resume_websession)
             if success:
@@ -152,12 +152,23 @@ class InstanceSession:
         if self._state != SessionState.authenticator:
             raise InvalidStateError(self._state)
 
-        loop = asyncio.get_event_loop()
+        api = self._api
+        loop = asyncio.get_running_loop()
         try:
-            await loop.run_in_executor(None, self._api.complete_weblogin, code)
+            await loop.run_in_executor(None, api.complete_weblogin, code)
         except ValueError as exc:
             logger.warning("Instance %r: 2FA code rejected: %s", self._config.name, exc)
             raise CodeRejectedError(str(exc)) from exc
+
+        # Re-check: a concurrent timeout may have transitioned to failed while
+        # complete_weblogin was running in the executor.
+        if self._state != SessionState.authenticator:
+            logger.warning(
+                "Instance %r: state changed during 2FA submit (now %r); ignoring.",
+                self._config.name,
+                self._state,
+            )
+            return
 
         self._state = SessionState.confirmed
         self._cancel_timeout()
@@ -191,14 +202,21 @@ class InstanceSession:
                 self._config.name,
             )
             self._state = SessionState.failed
+            self._cancel_push_task()
+        self._timeout_task = None
 
     def _cancel_timeout(self) -> None:
         if self._timeout_task and not self._timeout_task.done():
             self._timeout_task.cancel()
         self._timeout_task = None
 
+    def _cancel_push_task(self) -> None:
+        if self._push_task and not self._push_task.done():
+            self._push_task.cancel()
+        self._push_task = None
+
     async def _run_push_confirmation(self) -> None:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         try:
             await loop.run_in_executor(None, self._api.complete_weblogin)
             if self._state == SessionState.push:
@@ -215,3 +233,5 @@ class InstanceSession:
             if self._state == SessionState.push:
                 self._state = SessionState.failed
                 self._cancel_timeout()
+        finally:
+            self._push_task = None

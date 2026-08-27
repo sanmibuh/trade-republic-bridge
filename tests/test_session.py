@@ -177,7 +177,8 @@ class TestTimeout:
         api = _mock_api(resume_returns=False, needs_authenticator=False)
 
         def _blocking_complete(*_args):
-            time.sleep(10)
+            # A short sleep is enough: tfa_timeout=0 fires before this returns.
+            time.sleep(0.5)
 
         api.complete_weblogin.side_effect = _blocking_complete
         with patch("tr_bridge.session.TradeRepublicApi", return_value=api):
