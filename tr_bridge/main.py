@@ -1,7 +1,9 @@
 """FastAPI application entry point."""
 
+import importlib.metadata
 import logging
-from collections.abc import AsyncIterator
+import sys
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from http import HTTPStatus
 from pathlib import Path
@@ -12,12 +14,16 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import Response
 from starlette.exceptions import HTTPException
 
+from tr_bridge.auth import UnauthorizedException, check_api_key
 from tr_bridge.config import Config
 from tr_bridge.errors import ProblemDetail, problem_response
 
 logger = logging.getLogger(__name__)
 
 _VERSION_FILE = Path(__file__).parent.parent / "VERSION"
+
+# Paths that bypass API-key authentication.
+_PUBLIC_PATHS: frozenset[str] = frozenset({"/health"})
 
 
 def _read_version() -> str:
@@ -29,8 +35,8 @@ def _read_version() -> str:
 
 @asynccontextmanager
 async def _lifespan(application: FastAPI) -> AsyncIterator[None]:
-    """Load and validate configuration on startup; fail fast if invalid."""
-    Config.load()
+    """Load and validate configuration on startup; store it on app.state."""
+    application.state.config = Config.load()
     yield
 
 
@@ -39,7 +45,38 @@ app = FastAPI(
     version=_read_version(),
     description="Thin HTTP wrapper around pytr for Trade Republic session management.",
     lifespan=_lifespan,
+    # Disable built-in doc UIs — this is an internal API protected by X-API-Key.
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None,
 )
+
+
+@app.middleware("http")
+async def _auth_middleware(
+    request: Request, call_next: Callable[[Request], Awaitable[Response]]
+) -> Response:
+    """Enforce X-API-Key on every request except paths in ``_PUBLIC_PATHS``.
+
+    The path is normalised by stripping a trailing slash before the lookup so
+    that liveness probes sent to ``/health/`` are not incorrectly rejected.
+    """
+    path = request.url.path.rstrip("/") or "/"
+    if path not in _PUBLIC_PATHS:
+        try:
+            check_api_key(request)
+        except UnauthorizedException:
+            return problem_response(
+                ProblemDetail(
+                    status=401,
+                    code="unauthorized",
+                    title="Unauthorized",
+                    detail=(
+                        "Missing or invalid API key. Provide a valid X-API-Key header."
+                    ),
+                )
+            )
+    return await call_next(request)
 
 
 @app.exception_handler(HTTPException)
@@ -83,6 +120,33 @@ async def _unhandled_exception_handler(request: Request, exc: Exception) -> Resp
             detail="An unexpected error occurred.",
         )
     )
+
+
+# ---------------------------------------------------------------------------
+# Public routes (no authentication required)
+# ---------------------------------------------------------------------------
+
+
+@app.get("/health", tags=["ops"])
+async def health() -> dict:
+    """Liveness probe — returns 200 OK with no authentication required."""
+    return {
+        "status": "ok",
+        "service": "tr-bridge",
+        "version": _read_version(),
+        "dependencies": {
+            "pytr": importlib.metadata.version("pytr"),
+            "python": sys.version.split()[0],
+        },
+    }
+
+
+# ---------------------------------------------------------------------------
+# Protected routes — register all authenticated endpoints directly on `app`.
+# The _auth_middleware above enforces X-API-Key for every path not listed in
+# _PUBLIC_PATHS, so any @app.get/post/... route defined here is protected
+# automatically without needing a separate router.
+# ---------------------------------------------------------------------------
 
 
 def start() -> None:

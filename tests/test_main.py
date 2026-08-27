@@ -8,9 +8,11 @@ from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.testclient import TestClient
 from starlette.exceptions import HTTPException
+from starlette.requests import Request
 
 import tr_bridge.main as main_module
 from tr_bridge.main import (
+    _auth_middleware,
     _http_exception_handler,
     _request_validation_error_handler,
     _unhandled_exception_handler,
@@ -129,6 +131,104 @@ class TestVersionReading:
         version = main_module._read_version()
 
         assert version == "unknown"
+
+
+class TestHealthEndpoint:
+    def test_health_returns_200_without_api_key(self) -> None:
+        """/health must be reachable without any authentication."""
+        with patch("tr_bridge.main.Config") as mock_cfg_cls:
+            mock_cfg_cls.load.return_value = MagicMock()
+            with TestClient(app) as client:
+                resp = client.get("/health")
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["status"] == "ok"
+        assert body["service"] == "tr-bridge"
+        assert "version" in body
+        assert "pytr" in body["dependencies"]
+        assert "python" in body["dependencies"]
+
+    def test_health_does_not_require_x_api_key(self) -> None:
+        """/health must return 200 even when X-API-Key is absent."""
+        with patch("tr_bridge.main.Config") as mock_cfg_cls:
+            mock_cfg_cls.load.return_value = MagicMock()
+            with TestClient(app) as client:
+                resp = client.get("/health", headers={})
+
+        assert resp.status_code == 200
+
+    def test_health_trailing_slash_is_not_rejected(self) -> None:
+        """/health/ with trailing slash must not be blocked by auth middleware."""
+        with patch("tr_bridge.main.Config") as mock_cfg_cls:
+            mock_cfg_cls.load.return_value = MagicMock()
+            with TestClient(app, follow_redirects=False) as client:
+                resp = client.get("/health/")
+
+        # Either a redirect (3xx) to /health or a 200 are acceptable;
+        # a 401 from the middleware is not.
+        assert resp.status_code != 401
+
+
+class TestAuthMiddleware:
+    """Integration tests that verify the HTTP auth middleware wiring.
+
+    A fresh app mirrors ``main.py``'s structure: middleware enforces X-API-Key
+    on all paths except ``/health``.  Using a fresh app avoids mutating global
+    state and keeps each test fully isolated.
+    """
+
+    def _make_app(self, api_key: str) -> FastAPI:
+        """Return a wired app with ``app.state.config`` pre-populated."""
+
+        test_app = FastAPI()
+        mock_cfg = MagicMock()
+        mock_cfg.api_key = api_key
+        test_app.state.config = mock_cfg
+
+        @test_app.middleware("http")
+        async def _auth(request: Request, call_next):
+            return await _auth_middleware(request, call_next)
+
+        @test_app.get("/health")
+        async def _health():
+            return {"status": "ok"}
+
+        @test_app.get("/protected")
+        async def _protected():
+            return {"ok": True}
+
+        return test_app
+
+    def test_protected_route_without_key_returns_401(self) -> None:
+        client = TestClient(self._make_app("testkey"), raise_server_exceptions=False)
+        resp = client.get("/protected")
+
+        assert resp.status_code == 401
+        assert resp.headers["content-type"] == "application/problem+json"
+        assert resp.json()["code"] == "unauthorized"
+
+    def test_protected_route_with_wrong_key_returns_401(self) -> None:
+        client = TestClient(self._make_app("testkey"), raise_server_exceptions=False)
+        resp = client.get("/protected", headers={"X-API-Key": "wrong"})
+
+        assert resp.status_code == 401
+
+    def test_protected_route_with_valid_key_returns_200(self) -> None:
+        client = TestClient(self._make_app("testkey"), raise_server_exceptions=False)
+        resp = client.get("/protected", headers={"X-API-Key": "testkey"})
+
+        assert resp.status_code == 200
+
+    def test_health_is_public_while_protected_routes_require_key(self) -> None:
+        """``/health`` must be reachable without a key; other routes must not."""
+        client = TestClient(self._make_app("testkey"), raise_server_exceptions=False)
+
+        health_resp = client.get("/health")
+        protected_resp = client.get("/protected")
+
+        assert health_resp.status_code == 200
+        assert protected_resp.status_code == 401
 
 
 class TestStart:
