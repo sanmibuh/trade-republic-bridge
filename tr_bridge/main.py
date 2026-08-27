@@ -1,6 +1,8 @@
 """FastAPI application entry point."""
 
+import importlib.metadata
 import logging
+import sys
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from http import HTTPStatus
@@ -142,7 +144,15 @@ async def _unhandled_exception_handler(request: Request, exc: Exception) -> Resp
 @app.get("/health", tags=["ops"])
 async def health() -> dict:
     """Liveness probe — returns 200 OK with no authentication required."""
-    return {"status": "ok"}
+    return {
+        "status": "ok",
+        "service": "tr-bridge",
+        "version": _read_version(),
+        "dependencies": {
+            "pytr": importlib.metadata.version("pytr"),
+            "python": sys.version.split()[0],
+        },
+    }
 
 
 # ---------------------------------------------------------------------------

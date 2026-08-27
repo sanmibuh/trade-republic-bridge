@@ -144,7 +144,12 @@ class TestHealthEndpoint:
                 resp = client.get("/health")
 
         assert resp.status_code == 200
-        assert resp.json() == {"status": "ok"}
+        body = resp.json()
+        assert body["status"] == "ok"
+        assert body["service"] == "tr-bridge"
+        assert "version" in body
+        assert "pytr" in body["dependencies"]
+        assert "python" in body["dependencies"]
 
     def test_health_does_not_require_x_api_key(self) -> None:
         """/health must return 200 even when X-API-Key is absent."""
