@@ -62,8 +62,8 @@ class InstanceSession:
         self._state = SessionState.idle
         self._lock = asyncio.Lock()
         self._api: TradeRepublicApi | None = None
-        self._timeout_task: asyncio.Task | None = None  # type: ignore[type-arg]
-        self._push_task: asyncio.Task | None = None  # type: ignore[type-arg]
+        self._timeout_task: asyncio.Task[None] | None = None
+        self._push_task: asyncio.Task[None] | None = None
 
     # ------------------------------------------------------------------
     # Public interface
@@ -228,7 +228,7 @@ class InstanceSession:
                 self._config.name,
             )
             self._state = SessionState.failed
-            self._timeout_task = None
+            self._cancel_timeout()
             return
         loop = asyncio.get_running_loop()
         try:
@@ -240,6 +240,13 @@ class InstanceSession:
                     "Instance %r: confirmed via push notification.",
                     self._config.name,
                 )
+        except asyncio.CancelledError:
+            # Expected when the timeout cancels the push task — not an error.
+            logger.debug(
+                "Instance %r: push confirmation task cancelled (timeout).",
+                self._config.name,
+            )
+            raise
         except Exception:
             logger.exception(
                 "Instance %r: push confirmation failed.", self._config.name

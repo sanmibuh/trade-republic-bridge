@@ -479,3 +479,33 @@ class TestTfaTimeout:
         )
         with pytest.raises(ConfigError, match="tfa_timeout"):
             Config.from_file(path)
+
+    def test_tfa_timeout_bool_true_raises_config_error(self, tmp_path) -> None:
+        path = _write_config(
+            tmp_path,
+            """
+            api_key: "secret"
+            tfa_timeout: true
+            instances:
+              - name: user1
+                phone: "+49123456789"
+                pin: "1234"
+            """,
+        )
+        with pytest.raises(ConfigError, match="tfa_timeout"):
+            Config.from_file(path)
+
+    def test_tfa_timeout_bool_false_raises_config_error(self, tmp_path) -> None:
+        path = _write_config(
+            tmp_path,
+            """
+            api_key: "secret"
+            tfa_timeout: false
+            instances:
+              - name: user1
+                phone: "+49123456789"
+                pin: "1234"
+            """,
+        )
+        with pytest.raises(ConfigError, match="tfa_timeout"):
+            Config.from_file(path)

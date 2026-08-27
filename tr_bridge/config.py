@@ -139,7 +139,7 @@ class Config:
     @classmethod
     def _parse_tfa_timeout(cls, raw: dict) -> int:
         value = raw.get("tfa_timeout", _DEFAULT_TFA_TIMEOUT)
-        if not isinstance(value, int) or value <= 0:
+        if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
             raise ConfigError(
                 "Config field 'tfa_timeout' must be a positive integer (seconds)"
             )
