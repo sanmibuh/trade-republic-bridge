@@ -1,0 +1,19 @@
+tests/test_main.py
+  s_ed97ff1fdc1f5e::t_c1ee0acbe5e345 9,12,15,181,183-185,188-190,192,194,196-225,228,235-237,240,245-247,250,255-258,261-262,265
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "bd8d647d915fbb201a6ce7eda76e2a24f2a7b52f",
+  "prompts": {},
+  "sessions": {
+    "s_ed97ff1fdc1f5e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fc0117375ffexROPrvuCxTCbdl",
+        "model": "claude-sonnet-4.6"
+      },
+      "human_author": "David Belmez <sanmibuh@gmail.com>"
+    }
+  }
+}
