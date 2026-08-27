@@ -70,8 +70,13 @@ class InstanceRegistry:
             logger.info("InstanceRegistry: resume_all complete.")
 
     async def _resume_safe(self, name: str, session: InstanceSession) -> None:
-        """Resume *session*, catching and logging any unexpected exception."""
+        """Resume *session*, catching and logging any unexpected exception.
+
+        Re-raises after logging so that ``resume_all`` can count failures via
+        ``asyncio.gather(return_exceptions=True)``.
+        """
         try:
             await session.resume()
         except Exception:
             logger.exception("Instance %r: unexpected error during resume.", name)
+            raise

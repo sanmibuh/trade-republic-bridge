@@ -90,3 +90,22 @@ class TestResume:
 
         # Service startup must survive all-instance resume failure.
         await registry.resume_all()
+
+    @pytest.mark.asyncio
+    async def test_resume_all_warning_fired_when_instance_fails(self) -> None:
+        """Failed count must reach the warning branch (failed > 0)."""
+        from unittest.mock import patch
+
+        cfg = _make_config(["alice", "bob"])
+        registry = InstanceRegistry(cfg)
+
+        registry.get("alice").resume = AsyncMock(side_effect=RuntimeError("boom"))
+        registry.get("bob").resume = AsyncMock()
+
+        with patch("tr_bridge.instance_registry.logger") as mock_logger:
+            await registry.resume_all()
+
+        mock_logger.warning.assert_called_once()
+        # First positional arg after the format string is the failed count.
+        failed_count = mock_logger.warning.call_args[0][1]
+        assert failed_count == 1
