@@ -167,6 +167,8 @@ class InstanceSession:
         Raises:
             NoLoginPendingError: if no login is awaiting an authenticator code.
             CodeRejectedError: if Trade Republic rejects the code.
+            RateLimitedError: if Trade Republic rate-limits the request.
+            TrUpstreamError: if an unexpected upstream error occurs.
         """
         if self._state != SessionState.authenticator:
             raise NoLoginPendingError(self._state)
@@ -180,6 +182,8 @@ class InstanceSession:
         except ValueError as exc:
             logger.warning("Instance %r: 2FA code rejected: %s", self._config.name, exc)
             raise CodeRejectedError(str(exc)) from exc
+        except requests.exceptions.RequestException as exc:
+            self._fail_with_upstream(exc)
 
         # Re-check: a concurrent timeout may have transitioned to failed while
         # complete_weblogin was running in the executor.

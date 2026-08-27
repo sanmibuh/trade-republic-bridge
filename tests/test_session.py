@@ -210,6 +210,32 @@ class TestSubmit2FA:
         assert session.state == SessionState.authenticator
 
     @pytest.mark.asyncio
+    async def test_submit_2fa_rate_limited_on_429(self, tmp_path: Path) -> None:
+        session = _make_session(tmp_path)
+        response = requests.Response()
+        response.status_code = 429
+        api = _mock_api(
+            complete_raises=requests.exceptions.HTTPError(response=response)
+        )
+        session._api = api
+        session._state = SessionState.authenticator
+        with pytest.raises(RateLimitedError):
+            await session.submit_2fa("123456")
+        assert session.state == SessionState.failed
+
+    @pytest.mark.asyncio
+    async def test_submit_2fa_upstream_error_on_request_exception(
+        self, tmp_path: Path
+    ) -> None:
+        session = _make_session(tmp_path)
+        api = _mock_api(complete_raises=requests.exceptions.ConnectionError("boom"))
+        session._api = api
+        session._state = SessionState.authenticator
+        with pytest.raises(TrUpstreamError):
+            await session.submit_2fa("123456")
+        assert session.state == SessionState.failed
+
+    @pytest.mark.asyncio
     async def test_submit_2fa_wrong_state_raises_no_login_pending(
         self, tmp_path: Path
     ) -> None:
