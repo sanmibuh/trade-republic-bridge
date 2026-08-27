@@ -239,3 +239,55 @@ class TestStart:
         mock_run.assert_called_once_with(
             "tr_bridge.main:app", host="127.0.0.1", port=8000
         )
+
+
+def _make_mock_config(api_key: str = "secret", instance_names: list[str] | None = None):
+    mock_cfg = MagicMock()
+    mock_cfg.api_key = api_key
+    mock_cfg.instance_names = instance_names or []
+    return mock_cfg
+
+
+class TestInstancesEndpoint:
+    """Tests for GET /instances — protected endpoint listing configured instances."""
+
+    def test_instances_returns_list_with_valid_key(self) -> None:
+        mock_cfg = _make_mock_config(api_key="mykey", instance_names=["alice", "bob"])
+        with patch("tr_bridge.main.Config") as mock_cls:
+            mock_cls.load.return_value = mock_cfg
+            with TestClient(app) as client:
+                resp = client.get("/instances", headers={"X-API-Key": "mykey"})
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body == {"instances": ["alice", "bob"]}
+
+    def test_instances_returns_empty_list_when_no_instances(self) -> None:
+        mock_cfg = _make_mock_config(api_key="mykey", instance_names=[])
+        with patch("tr_bridge.main.Config") as mock_cls:
+            mock_cls.load.return_value = mock_cfg
+            with TestClient(app) as client:
+                resp = client.get("/instances", headers={"X-API-Key": "mykey"})
+
+        assert resp.status_code == 200
+        assert resp.json() == {"instances": []}
+
+    def test_instances_without_api_key_returns_401(self) -> None:
+        mock_cfg = _make_mock_config(api_key="mykey", instance_names=["alice"])
+        with patch("tr_bridge.main.Config") as mock_cls:
+            mock_cls.load.return_value = mock_cfg
+            with TestClient(app) as client:
+                resp = client.get("/instances")
+
+        assert resp.status_code == 401
+        assert resp.headers["content-type"] == "application/problem+json"
+        assert resp.json()["code"] == "unauthorized"
+
+    def test_instances_with_wrong_api_key_returns_401(self) -> None:
+        mock_cfg = _make_mock_config(api_key="mykey", instance_names=["alice"])
+        with patch("tr_bridge.main.Config") as mock_cls:
+            mock_cls.load.return_value = mock_cfg
+            with TestClient(app) as client:
+                resp = client.get("/instances", headers={"X-API-Key": "wrong"})
+
+        assert resp.status_code == 401
