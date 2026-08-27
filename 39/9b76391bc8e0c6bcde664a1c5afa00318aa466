@@ -1,0 +1,20 @@
+tests/test_auth.py
+  h_35ce34583c4794 3,14,18-21,43-44,50-51,61-62
+tests/test_main.py
+  h_35ce34583c4794 188-189,197,221,224-225,232-233,238-239,245,247-248
+tr_bridge/auth.py
+  h_35ce34583c4794 7,14,17-18,24-25
+tr_bridge/main.py
+  h_35ce34583c4794 33-34,43-46,119-121,125-130
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "399b76391bc8e0c6bcde664a1c5afa00318aa466",
+  "prompts": {},
+  "humans": {
+    "h_35ce34583c4794": {
+      "author": "David Belmez <sanmibuh@gmail.com>"
+    }
+  }
+}
