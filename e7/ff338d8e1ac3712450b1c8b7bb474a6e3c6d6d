@@ -1,0 +1,16 @@
+tests/test_instance_registry.py
+  h_35ce34583c4794 93-111
+tr_bridge/instance_registry.py
+  h_35ce34583c4794 73-77,82
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "e7ff338d8e1ac3712450b1c8b7bb474a6e3c6d6d",
+  "prompts": {},
+  "humans": {
+    "h_35ce34583c4794": {
+      "author": "David Belmez <sanmibuh@gmail.com>"
+    }
+  }
+}
