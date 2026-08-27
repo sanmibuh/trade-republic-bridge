@@ -2,12 +2,12 @@
 
 from unittest.mock import MagicMock, patch
 
-from fastapi import Depends, FastAPI
+from fastapi import FastAPI
 from fastapi.responses import Response
 from fastapi.testclient import TestClient
 from starlette.requests import Request
 
-from tr_bridge.auth import UnauthorizedException, _check_api_key
+from tr_bridge.auth import UnauthorizedException, require_api_key
 from tr_bridge.errors import ProblemDetail, problem_response
 
 
@@ -26,7 +26,7 @@ def _make_test_app() -> FastAPI:
             )
         )
 
-    @test_app.get("/protected", dependencies=[Depends(_check_api_key)])
+    @test_app.get("/protected", dependencies=[require_api_key])
     async def _protected():
         return {"ok": True}
 
