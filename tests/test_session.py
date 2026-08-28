@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import ClassVar
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -17,6 +19,7 @@ from tr_bridge.session import (
     LoginInProgressError,
     NoLoginPendingError,
     RateLimitedError,
+    SessionExpiredError,
     SessionState,
     TrUpstreamError,
 )
@@ -366,3 +369,122 @@ class TestPushConfirmation:
             await session.start_login()
         await asyncio.sleep(0.05)
         assert session.state == SessionState.failed
+
+
+async def _confirmed_session(tmp_path: Path) -> InstanceSession:
+    """Return a session driven into the ``confirmed`` state with a mock API."""
+    session = _make_session(tmp_path)
+    api = _mock_api(resume_returns=True)
+    with patch("tr_bridge.session.TradeRepublicApi", return_value=api):
+        await session.resume()
+    return session
+
+
+class _FakeTimeline:
+    """Stand-in for pytr's ``Timeline`` that records its window and events."""
+
+    last_kwargs: ClassVar[dict] = {}
+
+    def __init__(self, tr, output_path, **kwargs) -> None:
+        type(self).last_kwargs = {
+            "tr": tr,
+            "output_path": output_path,
+            **kwargs,
+        }
+        self.events = [{"id": "e1", "timestamp": "2026-08-03T10:12:04.000+0000"}]
+
+    async def tl_loop(self) -> None:
+        return None
+
+
+class TestFetchTimeline:
+    _SINCE = datetime(2026, 8, 1, tzinfo=UTC)
+    _UNTIL = datetime(2026, 8, 10, tzinfo=UTC)
+
+    @pytest.mark.asyncio
+    async def test_returns_raw_events(self, tmp_path: Path) -> None:
+        session = await _confirmed_session(tmp_path)
+        with patch("tr_bridge.session.Timeline", _FakeTimeline):
+            events = await session.fetch_timeline(self._SINCE, self._UNTIL)
+        assert events == [{"id": "e1", "timestamp": "2026-08-03T10:12:04.000+0000"}]
+
+    @pytest.mark.asyncio
+    async def test_passes_time_window_to_pytr(self, tmp_path: Path) -> None:
+        session = await _confirmed_session(tmp_path)
+        with patch("tr_bridge.session.Timeline", _FakeTimeline):
+            await session.fetch_timeline(self._SINCE, self._UNTIL)
+        assert _FakeTimeline.last_kwargs["not_before"] == self._SINCE.timestamp()
+        assert _FakeTimeline.last_kwargs["not_after"] == self._UNTIL.timestamp()
+        assert _FakeTimeline.last_kwargs["store_event_database"] is False
+
+    @pytest.mark.asyncio
+    async def test_raises_session_expired_when_not_confirmed(
+        self, tmp_path: Path
+    ) -> None:
+        session = _make_session(tmp_path)
+        with pytest.raises(SessionExpiredError):
+            await session.fetch_timeline(self._SINCE, self._UNTIL)
+
+    @pytest.mark.asyncio
+    async def test_raises_upstream_error_when_pytr_fails(self, tmp_path: Path) -> None:
+        session = await _confirmed_session(tmp_path)
+
+        class _FailingTimeline(_FakeTimeline):
+            async def tl_loop(self) -> None:
+                raise RuntimeError("ws boom")
+
+        with (
+            patch("tr_bridge.session.Timeline", _FailingTimeline),
+            pytest.raises(TrUpstreamError, match="ws boom"),
+        ):
+            await session.fetch_timeline(self._SINCE, self._UNTIL)
+
+    @pytest.mark.asyncio
+    async def test_cancellation_propagates(self, tmp_path: Path) -> None:
+        session = await _confirmed_session(tmp_path)
+
+        class _CancelledTimeline(_FakeTimeline):
+            async def tl_loop(self) -> None:
+                raise asyncio.CancelledError
+
+        with (
+            patch("tr_bridge.session.Timeline", _CancelledTimeline),
+            pytest.raises(asyncio.CancelledError),
+        ):
+            await session.fetch_timeline(self._SINCE, self._UNTIL)
+
+    @pytest.mark.asyncio
+    async def test_upstream_401_raises_session_expired(self, tmp_path: Path) -> None:
+        """An HTTP 401 from pytr (expired cookies) maps to SessionExpiredError."""
+        session = await _confirmed_session(tmp_path)
+        response = MagicMock()
+        response.status_code = 401
+        error = requests.exceptions.HTTPError(response=response)
+
+        class _ExpiredTimeline(_FakeTimeline):
+            async def tl_loop(self) -> None:
+                raise error
+
+        with (
+            patch("tr_bridge.session.Timeline", _ExpiredTimeline),
+            pytest.raises(SessionExpiredError),
+        ):
+            await session.fetch_timeline(self._SINCE, self._UNTIL)
+
+    @pytest.mark.asyncio
+    async def test_upstream_non_401_raises_upstream_error(self, tmp_path: Path) -> None:
+        """A non-401 HTTP error stays mapped to TrUpstreamError."""
+        session = await _confirmed_session(tmp_path)
+        response = MagicMock()
+        response.status_code = 500
+        error = requests.exceptions.HTTPError(response=response)
+
+        class _FailingTimeline(_FakeTimeline):
+            async def tl_loop(self) -> None:
+                raise error
+
+        with (
+            patch("tr_bridge.session.Timeline", _FailingTimeline),
+            pytest.raises(TrUpstreamError),
+        ):
+            await session.fetch_timeline(self._SINCE, self._UNTIL)
