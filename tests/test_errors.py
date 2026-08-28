@@ -4,7 +4,7 @@ from fastapi.testclient import TestClient
 from starlette.applications import Starlette
 from starlette.routing import Route
 
-from tr_bridge.errors import ProblemDetail, problem_response
+from tr_bridge.errors import DomainError, ProblemDetail, problem_response
 
 
 def _make_app(detail: ProblemDetail) -> Starlette:
@@ -95,3 +95,33 @@ class TestProblemResponse:
         assert body["title"] == "Internal error"
         assert body["detail"] == "Unexpected failure."
         assert "type" in body
+
+
+class TestDomainError:
+    def test_to_problem_detail_uses_class_metadata_and_message(self) -> None:
+        class SampleError(DomainError):
+            status = 418
+            code = "sample_error"
+            title = "Sample error"
+
+        problem = SampleError("something went wrong").to_problem_detail()
+
+        assert problem.status == 418
+        assert problem.code == "sample_error"
+        assert problem.title == "Sample error"
+        assert problem.detail == "something went wrong"
+        assert problem.type == "https://tr-bridge/errors/sample-error"
+
+    def test_detail_can_be_overridden_independently_of_message(self) -> None:
+        class FixedDetailError(DomainError):
+            status = 409
+            code = "fixed_detail"
+            title = "Fixed detail"
+
+            @property
+            def detail(self) -> str:
+                return "a fixed, message-independent explanation"
+
+        problem = FixedDetailError("internal message").to_problem_detail()
+
+        assert problem.detail == "a fixed, message-independent explanation"

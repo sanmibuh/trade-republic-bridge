@@ -18,25 +18,20 @@ from starlette.exceptions import HTTPException
 
 from tr_bridge.auth import UnauthorizedException, check_api_key
 from tr_bridge.config import Config
-from tr_bridge.errors import ProblemDetail, problem_response
-from tr_bridge.instance_registry import InstanceNotFoundError, InstanceRegistry
-from tr_bridge.session import (
-    CodeRejectedError,
-    InvalidStateError,
-    LoginInProgressError,
-    NoLoginPendingError,
-    RateLimitedError,
-    SessionExpiredError,
-    TrUpstreamError,
-)
+from tr_bridge.errors import DomainError, ProblemDetail, problem_response
+from tr_bridge.instance_registry import InstanceRegistry
 
 logger = logging.getLogger(__name__)
 
 _VERSION_FILE = Path(__file__).parent.parent / "VERSION"
 
 
-class InvalidRequestError(Exception):
+class InvalidRequestError(DomainError):
     """Raised when a request carries missing or malformed query parameters."""
+
+    status = 400
+    code = "invalid_request"
+    title = "Invalid request"
 
 
 # Paths that bypass API-key authentication.
@@ -143,124 +138,16 @@ async def _unhandled_exception_handler(request: Request, exc: Exception) -> Resp
     )
 
 
-@app.exception_handler(InstanceNotFoundError)
-async def _instance_not_found_handler(
-    request: Request, exc: InstanceNotFoundError
-) -> Response:
-    return problem_response(
-        ProblemDetail(
-            status=404,
-            code="instance_not_found",
-            title="Instance not found",
-            detail=f"No instance named {exc.name!r} is configured.",
-        )
-    )
+@app.exception_handler(DomainError)
+async def _domain_error_handler(request: Request, exc: DomainError) -> Response:
+    """Translate any :class:`DomainError` into its RFC 9457 Problem Details.
 
-
-@app.exception_handler(LoginInProgressError)
-async def _login_in_progress_handler(
-    request: Request, exc: LoginInProgressError
-) -> Response:
-    return problem_response(
-        ProblemDetail(
-            status=409,
-            code="login_in_progress",
-            title="Login already in progress",
-            detail=str(exc),
-        )
-    )
-
-
-@app.exception_handler(CodeRejectedError)
-async def _code_rejected_handler(request: Request, exc: CodeRejectedError) -> Response:
-    return problem_response(
-        ProblemDetail(
-            status=401,
-            code="code_rejected",
-            title="2FA code rejected",
-            detail=str(exc),
-        )
-    )
-
-
-@app.exception_handler(InvalidStateError)
-async def _invalid_state_handler(request: Request, exc: InvalidStateError) -> Response:
-    return problem_response(
-        ProblemDetail(
-            status=409,
-            code="invalid_state",
-            title="Operation not valid in current state",
-            detail=str(exc),
-        )
-    )
-
-
-@app.exception_handler(NoLoginPendingError)
-async def _no_login_pending_handler(
-    request: Request, exc: NoLoginPendingError
-) -> Response:
-    return problem_response(
-        ProblemDetail(
-            status=409,
-            code="no_login_pending",
-            title="No login pending",
-            detail="No login is awaiting a 2FA code; start a login first.",
-        )
-    )
-
-
-@app.exception_handler(RateLimitedError)
-async def _rate_limited_handler(request: Request, exc: RateLimitedError) -> Response:
-    return problem_response(
-        ProblemDetail(
-            status=429,
-            code="rate_limited",
-            title="Rate limited",
-            detail=str(exc),
-        )
-    )
-
-
-@app.exception_handler(TrUpstreamError)
-async def _tr_upstream_error_handler(
-    request: Request, exc: TrUpstreamError
-) -> Response:
-    return problem_response(
-        ProblemDetail(
-            status=502,
-            code="tr_upstream_error",
-            title="Trade Republic upstream error",
-            detail=str(exc),
-        )
-    )
-
-
-@app.exception_handler(SessionExpiredError)
-async def _session_expired_handler(
-    request: Request, exc: SessionExpiredError
-) -> Response:
-    return problem_response(
-        ProblemDetail(
-            status=401,
-            code="session_expired",
-            title="Session expired",
-            detail=str(exc),
-        )
-    )
-
-
-@app.exception_handler(InvalidRequestError)
-async def _invalid_request_handler(
-    request: Request, exc: InvalidRequestError
-) -> Response:
-    return problem_response(
-        ProblemDetail(
-            status=400,
-            code="invalid_request",
-            title="Invalid request",
-            detail=str(exc),
-        )
-    )
+    A single data-driven handler covers every domain exception: the HTTP
+    ``status``, ``code`` and ``title`` live on the exception class itself, so
+    introducing a new domain error requires no change here. Starlette resolves
+    this handler for subclasses via the exception's MRO.
+    """
+    return problem_response(exc.to_problem_detail())
 
 
 # ---------------------------------------------------------------------------

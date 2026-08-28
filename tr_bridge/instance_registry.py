@@ -6,17 +6,26 @@ import asyncio
 import logging
 
 from tr_bridge.config import Config
+from tr_bridge.errors import DomainError
 from tr_bridge.session import InstanceSession
 
 logger = logging.getLogger(__name__)
 
 
-class InstanceNotFoundError(Exception):
+class InstanceNotFoundError(DomainError):
     """Raised when a requested instance name is not in the registry."""
+
+    status = 404
+    code = "instance_not_found"
+    title = "Instance not found"
 
     def __init__(self, name: str) -> None:
         super().__init__(f"Instance not found: {name!r}")
         self.name = name
+
+    @property
+    def detail(self) -> str:
+        return f"No instance named {self.name!r} is configured."
 
 
 class InstanceRegistry:
