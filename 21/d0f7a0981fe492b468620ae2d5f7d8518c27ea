@@ -1,0 +1,23 @@
+tests/test_timewindow.py
+  s_12193124409d6a::t_ab73e56fec0761 1-89
+tr_bridge/main.py
+  s_12193124409d6a::t_bb46459f699434 22,276,282-283
+tr_bridge/timewindow.py
+  s_12193124409d6a::t_927b161a1790c2 1-70
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "21d0f7a0981fe492b468620ae2d5f7d8518c27ea",
+  "prompts": {},
+  "sessions": {
+    "s_12193124409d6a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fb703e78bffe7alxXcZEug1STE",
+        "model": "claude-opus-4.8"
+      },
+      "human_author": "David Belmez <sanmibuh@gmail.com>"
+    }
+  }
+}
