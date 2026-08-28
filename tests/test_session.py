@@ -89,9 +89,14 @@ async def _pending_push_session(
     session = _make_session(tmp_path)
     release = threading.Event()
     api = _mock_api(resume_returns=False, needs_authenticator=False)
-    # A generous timeout guards against a stuck executor thread hanging the
-    # suite if a caller (or a failed assertion) never releases the event.
-    api.complete_weblogin.side_effect = lambda *_args: release.wait(timeout=5)
+
+    def _block_until_released(*_args: object) -> None:
+        # Fail loudly instead of silently confirming if the caller never
+        # releases the event, so a stuck thread can never mask a bug.
+        if not release.wait(timeout=5):
+            raise TimeoutError("push confirmation was never released by the test")
+
+    api.complete_weblogin.side_effect = _block_until_released
     with patch("tr_bridge.session.TradeRepublicApi", return_value=api):
         state = await session.start_login()
     assert state == SessionState.push
