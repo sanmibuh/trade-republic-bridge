@@ -31,6 +31,80 @@ FastAPI was chosen because:
 
 ---
 
+## Module structure — a light hexagonal architecture
+
+The service follows a proportionate ports-and-adapters (hexagonal) layout. It
+keeps the core of the pattern — a domain-driven use case that depends on a
+**port**, with concrete **adapters** on either side — without the heavy
+inter-layer DTO mapping that would be overkill for a thin wrapper.
+
+```
+tr_bridge/
+  adapters/
+    web/            # PRIMARY adapter: FastAPI routes, schemas, handlers, auth wiring
+      routes.py
+      schemas.py
+      handlers.py
+    pytr/           # SECONDARY adapter: implements the port using pytr
+      pytr_client.py
+  application/
+    session.py      # USE CASE: login/2FA state machine — depends ONLY on the port
+    ports.py        # SECONDARY port: Protocol TradeRepublicClient
+  domain/
+    state.py        # SessionState, LoginChallenge, and domain exceptions
+  config.py
+  errors.py         # RFC 9457 DomainError base + ProblemDetail
+  auth.py
+  timewindow.py
+  instance_registry.py  # per-instance composition factory
+  main.py           # composition root
+```
+
+### Boundary between the use case and the secondary adapter
+
+`domain/state.py` is the pure core: it declares the states
+(`idle/authenticator/push/confirmed/failed`), the `LoginChallenge`
+(`authenticator | push`), and the domain exceptions. It depends on nothing but
+the `DomainError` base.
+
+`application/session.py` is the **use case**. It owns the asyncio-centric
+orchestration — the per-instance `asyncio.Lock`, the 2FA timeout task, and the
+background push-polling task — and drives the state transitions. It talks to
+Trade Republic **exclusively through the `TradeRepublicClient` port**
+(`application/ports.py`) and has no import of pytr. Only upstream failures
+(`RateLimitedError`, `TrUpstreamError`) drive the machine to `failed`; a rejected
+2FA code leaves the login pending for a retry.
+
+`adapters/pytr/pytr_client.py` is the **secondary adapter** and the *only* module
+that imports pytr. It is thin and holds no business state: it builds and caches
+the `TradeRepublicApi` handle, bridges pytr's blocking calls onto a thread via
+`run_in_executor`, and translates transport-level failures into domain errors
+(HTTP 429 → `RateLimitedError`, other `requests` errors → `TrUpstreamError`,
+`ValueError` on a bad code → `CodeRejectedError`, HTTP 401 on a timeline fetch →
+`SessionExpiredError`).
+
+`adapters/web/` is the **primary adapter**: `routes.py` defines the FastAPI
+endpoints (thin — parse/echo the HTTP contract and delegate to the use case),
+`schemas.py` holds the Pydantic request/response models, and `handlers.py` wires
+the `X-API-Key` middleware and the RFC 9457 exception handlers.
+
+`instance_registry.py` is the per-instance **composition factory**: for each
+configured instance it builds a `PytrClient` and injects it into an
+`InstanceSession` use case. `main.py` is the **composition root**: it builds the
+app, registers the web adapter's handlers and routes, and constructs the registry
+on startup.
+
+### Why this shape
+
+Depending on a `Protocol` port rather than on pytr restores the Dependency
+Inversion Principle: the use case is exercised in tests through an in-memory fake
+of the port (`tests/test_session.py`) with no pytr mocking, while the pytr-specific
+translation is covered in isolation (`tests/test_pytr_client.py`). pytr is
+referenced from a single module, so a change in its API has a single blast radius.
+
+---
+
+
 ## Configuration
 
 The service reads a single YAML file at the fixed path `/data/config.yml`. The file contains the
@@ -198,7 +272,8 @@ Each error body includes a `code` field (snake_case) in addition to the standard
 Domain errors carry their own HTTP mapping. Each domain error subclasses `DomainError` (in
 `errors.py`) and declares its `status`, `code` and `title` as class attributes; `detail` defaults to
 the exception message but can be overridden for a fixed, message-independent explanation. A single
-generic handler in `main.py` (`_domain_error_handler`) resolves *any* `DomainError` via the
-exception's MRO and calls `to_problem_detail()`, so introducing a new domain error never requires
-editing the web layer. Only the genuinely distinct cases keep dedicated handlers: `HTTPException`,
-`RequestValidationError`, and the `Exception` catch-all.
+generic handler in the web adapter (`adapters/web/handlers.py::domain_error_handler`) resolves *any*
+`DomainError` via the exception's MRO and calls `to_problem_detail()`, so introducing a new domain
+error never requires editing the web layer. Only the genuinely distinct cases keep dedicated
+handlers: `HTTPException`, `RequestValidationError`, and the `Exception` catch-all. The session
+domain errors themselves live alongside the state machine's vocabulary in `domain/state.py`.
