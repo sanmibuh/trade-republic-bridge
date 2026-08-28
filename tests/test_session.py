@@ -117,12 +117,19 @@ async def _pending_push_session() -> tuple[InstanceSession, FakeClient]:
     return session, client
 
 
-async def _wait_until_left_push(session: InstanceSession) -> None:
-    for _ in range(100):
-        if session.state != SessionState.push:
+async def _wait_for_state(session: InstanceSession, expected: SessionState) -> None:
+    """Poll until *session* reaches *expected* (deterministic, non-flaky).
+
+    Waiting on the observable state instead of a fixed ``sleep`` lets a slow CI
+    runner take as long as it needs without leaking a pending background task.
+    """
+    for _ in range(200):
+        if session.state == expected:
             return
-        await asyncio.sleep(0.01)
-    raise AssertionError("push confirmation task never completed")
+        await asyncio.sleep(0.005)
+    raise AssertionError(
+        f"session never reached {expected!r} (still {session.state!r})"
+    )
 
 
 class TestInitialState:
@@ -166,7 +173,7 @@ class TestStartLogin:
         state = await session.start_login()
         assert state == SessionState.push
         assert session.state == SessionState.push
-        await asyncio.sleep(0.05)  # let the push task settle
+        await _wait_for_state(session, SessionState.confirmed)  # let push settle
 
     @pytest.mark.asyncio
     async def test_concurrent_login_raises_409_from_authenticator(self) -> None:
@@ -182,7 +189,7 @@ class TestStartLogin:
                 await session.start_login()
         finally:
             client.gate.set()
-            await _wait_until_left_push(session)
+            await _wait_for_state(session, SessionState.confirmed)
 
     @pytest.mark.asyncio
     async def test_second_login_racing_for_the_lock_raises_409(self) -> None:
@@ -292,7 +299,7 @@ class TestTimeout:
             FakeClient(challenge=LoginChallenge.authenticator), tfa_timeout=0
         )
         await session.start_login()
-        await asyncio.sleep(0.05)
+        await _wait_for_state(session, SessionState.failed)
         assert session.state == SessionState.failed
 
     @pytest.mark.asyncio
@@ -300,7 +307,7 @@ class TestTimeout:
         client = FakeClient(challenge=LoginChallenge.push, complete_delay=0.5)
         session = _make_session(client, tfa_timeout=0)
         await session.start_login()
-        await asyncio.sleep(0.05)
+        await _wait_for_state(session, SessionState.failed)
         assert session.state == SessionState.failed
 
     @pytest.mark.asyncio
@@ -316,7 +323,7 @@ class TestPushConfirmation:
     async def test_push_transitions_to_confirmed_after_approval(self) -> None:
         session = _make_session(FakeClient(challenge=LoginChallenge.push))
         await session.start_login()
-        await asyncio.sleep(0.05)
+        await _wait_for_state(session, SessionState.confirmed)
         assert session.state == SessionState.confirmed
 
     @pytest.mark.asyncio
@@ -328,7 +335,7 @@ class TestPushConfirmation:
             )
         )
         await session.start_login()
-        await asyncio.sleep(0.05)
+        await _wait_for_state(session, SessionState.failed)
         assert session.state == SessionState.failed
 
 
