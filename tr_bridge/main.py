@@ -390,6 +390,14 @@ def _parse_iso(value: str, field: str) -> datetime:
         raise InvalidRequestError(
             f"Query parameter {field!r} is not a valid ISO-8601 timestamp: {value!r}"
         ) from exc
+    # datetime.fromisoformat() also accepts date-only strings (e.g. "2026-08-01"),
+    # but the contract requires a full timestamp. Reject values that lack a time
+    # component (no 'T'/'t' or space separator between date and time).
+    if "T" not in value and "t" not in value and " " not in value.strip():
+        raise InvalidRequestError(
+            f"Query parameter {field!r} must be a full ISO-8601 timestamp with a "
+            f"time component, not a date only: {value!r}"
+        )
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=UTC)
     return parsed
