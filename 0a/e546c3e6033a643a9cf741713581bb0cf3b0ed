@@ -1,0 +1,14 @@
+tests/test_session.py
+  h_35ce34583c4794 182-184
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "0ae546c3e6033a643a9cf741713581bb0cf3b0ed",
+  "prompts": {},
+  "humans": {
+    "h_35ce34583c4794": {
+      "author": "David Belmez <sanmibuh@gmail.com>"
+    }
+  }
+}
