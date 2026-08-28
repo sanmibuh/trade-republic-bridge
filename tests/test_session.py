@@ -179,6 +179,9 @@ class TestStartLogin:
                 await session.start_login()
         finally:
             release.set()
+            # Let the unblocked push-confirmation task finish before teardown
+            # so it does not linger as a pending task on the event loop.
+            await asyncio.sleep(0.05)
 
     @pytest.mark.asyncio
     async def test_second_login_racing_for_the_lock_raises_409(
