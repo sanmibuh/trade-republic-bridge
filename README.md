@@ -188,6 +188,8 @@ Submit the TOTP authenticator code for a login that is in `authenticator` state.
 |--------------------|------|------|
 | `code_rejected`    | 401  | The code was wrong |
 | `no_login_pending` | 409  | No authenticator login is currently awaiting a code |
+| `rate_limited`     | 429  | TR login rate-limit hit |
+| `tr_upstream_error`| 502  | pytr / TR websocket or HTTP failure |
 
 ---
 
