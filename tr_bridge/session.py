@@ -214,13 +214,36 @@ class InstanceSession:
         self._state = SessionState.failed
         self._cancel_timeout()
         response = getattr(exc, "response", None)
-        if response is not None and response.status_code == 429:
+        status_code = response.status_code if response is not None else None
+        if status_code == 429:
             logger.warning("Instance %r: login rate-limited.", self._config.name)
             raise RateLimitedError(
                 f"Trade Republic rate-limited login for instance {self._config.name!r}."
             ) from exc
         logger.warning("Instance %r: upstream login error: %s", self._config.name, exc)
-        raise TrUpstreamError(str(exc)) from exc
+        raise TrUpstreamError(self._upstream_message(exc, status_code)) from exc
+
+    def _upstream_message(
+        self,
+        exc: requests.exceptions.RequestException,
+        status_code: int | None,
+    ) -> str:
+        """Build a signal-rich message for an upstream failure.
+
+        Includes the instance name and the upstream HTTP status code when
+        available, falling back to the exception type when ``str(exc)`` is empty
+        (as happens with ``HTTPError`` raised without arguments).
+        """
+        detail = str(exc) or type(exc).__name__
+        if status_code is not None:
+            return (
+                f"Trade Republic upstream error for instance "
+                f"{self._config.name!r} (HTTP {status_code}): {detail}"
+            )
+        return (
+            f"Trade Republic upstream error for instance "
+            f"{self._config.name!r}: {detail}"
+        )
 
     def _build_api(self) -> TradeRepublicApi:
         session_path = Path(self._session_dir)

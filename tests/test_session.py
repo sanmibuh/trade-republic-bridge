@@ -236,6 +236,40 @@ class TestSubmit2FA:
         assert session.state == SessionState.failed
 
     @pytest.mark.asyncio
+    async def test_upstream_error_message_includes_status_and_instance(
+        self, tmp_path: Path
+    ) -> None:
+        session = _make_session(tmp_path)
+        response = requests.Response()
+        response.status_code = 503
+        # HTTPError raised without args stringifies to "" — the message must
+        # still carry the status code and instance name.
+        api = _mock_api(
+            complete_raises=requests.exceptions.HTTPError(response=response)
+        )
+        session._api = api
+        session._state = SessionState.authenticator
+        with pytest.raises(TrUpstreamError) as excinfo:
+            await session.submit_2fa("123456")
+        message = str(excinfo.value)
+        assert "503" in message
+        assert "user1" in message
+
+    @pytest.mark.asyncio
+    async def test_upstream_error_message_falls_back_to_exception_type(
+        self, tmp_path: Path
+    ) -> None:
+        session = _make_session(tmp_path)
+        api = _mock_api(complete_raises=requests.exceptions.ConnectionError())
+        session._api = api
+        session._state = SessionState.authenticator
+        with pytest.raises(TrUpstreamError) as excinfo:
+            await session.submit_2fa("123456")
+        message = str(excinfo.value)
+        assert "ConnectionError" in message
+        assert "user1" in message
+
+    @pytest.mark.asyncio
     async def test_submit_2fa_wrong_state_raises_no_login_pending(
         self, tmp_path: Path
     ) -> None:

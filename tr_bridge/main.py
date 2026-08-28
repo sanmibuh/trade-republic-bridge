@@ -326,7 +326,8 @@ async def post_instance_login_2fa(
 ) -> LoginStateResponse:
     """Submit a 2FA authenticator code to complete a pending login.
 
-    Raises a problem detail on ``code_rejected`` or ``no_login_pending``.
+    Raises a problem detail on ``code_rejected``, ``no_login_pending``,
+    ``rate_limited`` or ``tr_upstream_error``.
     """
     registry: InstanceRegistry = request.app.state.registry
     session = registry.get(name)

@@ -594,3 +594,29 @@ class TestLogin2faEndpoint:
             json={"code": "123456"},
         )
         assert resp.status_code == 404
+
+    def test_2fa_rate_limited_returns_429(self, make_client) -> None:
+        session = _FakeSession(
+            submit_2fa=AsyncMock(side_effect=RateLimitedError("slow down"))
+        )
+        client = make_client(session)
+        resp = client.post(
+            "/instances/user1/login/2fa",
+            headers={"X-API-Key": "mykey"},
+            json={"code": "123456"},
+        )
+        assert resp.status_code == 429
+        assert resp.json()["code"] == "rate_limited"
+
+    def test_2fa_upstream_error_returns_502(self, make_client) -> None:
+        session = _FakeSession(
+            submit_2fa=AsyncMock(side_effect=TrUpstreamError("boom"))
+        )
+        client = make_client(session)
+        resp = client.post(
+            "/instances/user1/login/2fa",
+            headers={"X-API-Key": "mykey"},
+            json={"code": "123456"},
+        )
+        assert resp.status_code == 502
+        assert resp.json()["code"] == "tr_upstream_error"
