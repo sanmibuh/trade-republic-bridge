@@ -68,5 +68,11 @@ def parse_window(since: str | None, until: str | None) -> tuple[datetime, dateti
 
 
 def to_utc_iso(dt: datetime) -> str:
-    """Render *dt* as an ISO-8601 string normalised to UTC with a ``Z`` suffix."""
+    """Render *dt* as an ISO-8601 string normalised to UTC with a ``Z`` suffix.
+
+    Naive datetimes are assumed to be UTC (consistent with :func:`parse_window`),
+    so the output never depends on the host's local timezone.
+    """
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=UTC)
     return dt.astimezone(UTC).isoformat().replace("+00:00", "Z")

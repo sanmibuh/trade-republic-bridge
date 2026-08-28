@@ -26,8 +26,8 @@ class TestParseWindow:
 
         assert since.utcoffset() == timedelta(hours=2)
         assert until.utcoffset() == timedelta(hours=5, minutes=30)
-        assert since == datetime(2026, 8, 1, tzinfo=UTC)
-        assert until == datetime(2026, 8, 10, tzinfo=UTC)
+        assert since.astimezone(UTC) == datetime(2026, 8, 1, tzinfo=UTC)
+        assert until.astimezone(UTC) == datetime(2026, 8, 10, tzinfo=UTC)
 
     def test_until_defaults_to_now(self) -> None:
         before = datetime.now(tz=UTC)
@@ -89,3 +89,6 @@ class TestToUtcIso:
         aware = datetime(2026, 8, 1, 2, 0, 0, tzinfo=timezone(timedelta(hours=2)))
 
         assert to_utc_iso(aware) == "2026-08-01T00:00:00Z"
+
+    def test_naive_datetime_is_assumed_utc(self) -> None:
+        assert to_utc_iso(datetime(2026, 8, 1)) == "2026-08-01T00:00:00Z"
