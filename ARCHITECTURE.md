@@ -166,7 +166,9 @@ The `[since, until)` window itself is parsed and validated by a dedicated `tr_br
 module, keeping this domain-ish logic out of the FastAPI entry point. Its public surface is
 `parse_window(since, until) -> (datetime, datetime)` and `to_utc_iso(dt)`; it owns the validation
 contract (`since` required, `until` defaults to now, `until` strictly after `since`, date-only values
-rejected) and raises `InvalidRequestError` (`400 invalid_request`) on malformed input.
+rejected) and raises `InvalidRequestError` (`400 invalid_request`) on malformed input. `parse_window`
+assumes UTC for naive timestamps and preserves any explicit offset; converting to a `Z`-suffixed UTC
+string is done separately by `to_utc_iso` when the route echoes the window back.
 
 Rationale:
 

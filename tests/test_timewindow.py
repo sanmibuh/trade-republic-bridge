@@ -24,6 +24,8 @@ class TestParseWindow:
             "2026-08-01T02:00:00+02:00", "2026-08-10T05:30:00+05:30"
         )
 
+        assert since.utcoffset() == timedelta(hours=2)
+        assert until.utcoffset() == timedelta(hours=5, minutes=30)
         assert since == datetime(2026, 8, 1, tzinfo=UTC)
         assert until == datetime(2026, 8, 10, tzinfo=UTC)
 

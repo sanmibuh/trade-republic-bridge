@@ -1,9 +1,11 @@
 """Time-window parsing and UTC normalisation for the ``[since, until)`` range.
 
 This module owns the domain-ish logic that resolves and validates the timeline
-query window, independent of the FastAPI layer. It parses ISO-8601 timestamps,
-enforces the contract (``since`` required, ``until`` defaults to now, ``until``
-strictly after ``since``, no date-only values) and normalises datetimes to UTC.
+query window, independent of the FastAPI layer. It parses ISO-8601 timestamps
+and enforces the contract (``since`` required, ``until`` defaults to now,
+``until`` strictly after ``since``, no date-only values). Naive timestamps are
+assumed to be UTC; timezone-aware values keep their original offset. Rendering
+to a UTC ``Z``-suffixed string is a separate concern handled by ``to_utc_iso``.
 """
 
 from datetime import UTC, datetime
