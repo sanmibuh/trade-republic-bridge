@@ -452,3 +452,39 @@ class TestFetchTimeline:
             pytest.raises(asyncio.CancelledError),
         ):
             await session.fetch_timeline(self._SINCE, self._UNTIL)
+
+    @pytest.mark.asyncio
+    async def test_upstream_401_raises_session_expired(self, tmp_path: Path) -> None:
+        """An HTTP 401 from pytr (expired cookies) maps to SessionExpiredError."""
+        session = await _confirmed_session(tmp_path)
+        response = MagicMock()
+        response.status_code = 401
+        error = requests.exceptions.HTTPError(response=response)
+
+        class _ExpiredTimeline(_FakeTimeline):
+            async def tl_loop(self) -> None:
+                raise error
+
+        with (
+            patch("tr_bridge.session.Timeline", _ExpiredTimeline),
+            pytest.raises(SessionExpiredError),
+        ):
+            await session.fetch_timeline(self._SINCE, self._UNTIL)
+
+    @pytest.mark.asyncio
+    async def test_upstream_non_401_raises_upstream_error(self, tmp_path: Path) -> None:
+        """A non-401 HTTP error stays mapped to TrUpstreamError."""
+        session = await _confirmed_session(tmp_path)
+        response = MagicMock()
+        response.status_code = 500
+        error = requests.exceptions.HTTPError(response=response)
+
+        class _FailingTimeline(_FakeTimeline):
+            async def tl_loop(self) -> None:
+                raise error
+
+        with (
+            patch("tr_bridge.session.Timeline", _FailingTimeline),
+            pytest.raises(TrUpstreamError),
+        ):
+            await session.fetch_timeline(self._SINCE, self._UNTIL)

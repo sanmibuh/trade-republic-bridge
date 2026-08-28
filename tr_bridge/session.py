@@ -212,8 +212,9 @@ class InstanceSession:
         mapping or filtering beyond the time window handled by pytr.
 
         Raises:
-            SessionExpiredError: if there is no confirmed session to query.
-            TrUpstreamError: if the pytr timeline request fails.
+            SessionExpiredError: if there is no confirmed session to query, or
+                the upstream request fails with HTTP 401 (expired cookies).
+            TrUpstreamError: if the pytr timeline request fails otherwise.
         """
         if self._state != SessionState.confirmed or self._api is None:
             raise SessionExpiredError(
@@ -233,6 +234,16 @@ class InstanceSession:
             # asyncio.CancelledError is a BaseException, not an Exception, so it
             # is intentionally not caught here and propagates for graceful task
             # cancellation.
+            status_code = getattr(getattr(exc, "response", None), "status_code", None)
+            if status_code == 401:
+                logger.info(
+                    "Instance %r: timeline request returned 401; session expired.",
+                    self._config.name,
+                )
+                raise SessionExpiredError(
+                    f"Trade Republic session for instance {self._config.name!r} "
+                    f"has expired; login required."
+                ) from exc
             logger.warning(
                 "Instance %r: timeline fetch failed: %s",
                 self._config.name,
