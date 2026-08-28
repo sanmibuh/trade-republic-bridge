@@ -1,0 +1,29 @@
+tests/test_errors.py
+  s_506b06148c25f1::t_29a27875363f37 7,98-127
+tests/test_main.py
+  s_506b06148c25f1::t_b55b583c5dff46 329,331,340-341
+tr_bridge/errors.py
+  s_506b06148c25f1::t_87df25484b6663 3-4,28-58
+tr_bridge/instance_registry.py
+  s_506b06148c25f1::t_a2aa014cfc1436 9,15,18-21,26-29
+tr_bridge/main.py
+  s_506b06148c25f1::t_9db38c679d65f9 21-22,29,32-35,141-143,145-150
+tr_bridge/session.py
+  s_506b06148c25f1::t_d52bc7756acabf 26,39,42-44,46-47,50-53,55,58-61,63,66-68,70-71,74-77,79,82-85,94-100
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "47c53d0d5a2b6985412339eae02908627852a758",
+  "prompts": {},
+  "sessions": {
+    "s_506b06148c25f1": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fb731083effejuwZfPGFWLum9Z",
+        "model": "claude-opus-4.8"
+      },
+      "human_author": "David Belmez <sanmibuh@gmail.com>"
+    }
+  }
+}
