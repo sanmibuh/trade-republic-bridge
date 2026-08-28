@@ -5,7 +5,6 @@ import logging
 import sys
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime
 from http import HTTPStatus
 from pathlib import Path
 
@@ -20,18 +19,11 @@ from tr_bridge.auth import UnauthorizedException, check_api_key
 from tr_bridge.config import Config
 from tr_bridge.errors import DomainError, ProblemDetail, problem_response
 from tr_bridge.instance_registry import InstanceRegistry
+from tr_bridge.timewindow import parse_window, to_utc_iso
 
 logger = logging.getLogger(__name__)
 
 _VERSION_FILE = Path(__file__).parent.parent / "VERSION"
-
-
-class InvalidRequestError(DomainError):
-    """Raised when a request carries missing or malformed query parameters."""
-
-    status = 400
-    code = "invalid_request"
-    title = "Invalid request"
 
 
 # Paths that bypass API-key authentication.
@@ -265,59 +257,6 @@ async def post_instance_login_2fa(
     return LoginStateResponse(state=session.state)
 
 
-def _parse_iso(value: str, field: str) -> datetime:
-    """Parse an ISO-8601 timestamp, normalising naive values to UTC.
-
-    Raises:
-        InvalidRequestError: if *value* is not a valid ISO-8601 timestamp.
-    """
-    try:
-        parsed = datetime.fromisoformat(value)
-    except ValueError as exc:
-        raise InvalidRequestError(
-            f"Query parameter {field!r} is not a valid ISO-8601 timestamp: {value!r}"
-        ) from exc
-    # datetime.fromisoformat() also accepts date-only strings (e.g. "2026-08-01"),
-    # but the contract requires a full timestamp. Reject values that lack a time
-    # component (no 'T'/'t' or space separator between date and time).
-    if "T" not in value and "t" not in value and " " not in value.strip():
-        raise InvalidRequestError(
-            f"Query parameter {field!r} must be a full ISO-8601 timestamp with a "
-            f"time component, not a date only: {value!r}"
-        )
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=UTC)
-    return parsed
-
-
-def _parse_time_window(
-    since: str | None, until: str | None
-) -> tuple[datetime, datetime]:
-    """Resolve the ``[since, until)`` window from raw query strings.
-
-    ``since`` is required; ``until`` defaults to the current time.
-
-    Raises:
-        InvalidRequestError: if ``since`` is missing, either value is malformed,
-            or ``until`` is not strictly later than ``since``.
-    """
-    if since is None:
-        raise InvalidRequestError("Query parameter 'since' is required.")
-    since_dt = _parse_iso(since, "since")
-    until_dt = datetime.now(tz=UTC) if until is None else _parse_iso(until, "until")
-    if until_dt <= since_dt:
-        raise InvalidRequestError(
-            f"Query parameter 'until' ({until_dt.isoformat()}) must be later than "
-            f"'since' ({since_dt.isoformat()})."
-        )
-    return since_dt, until_dt
-
-
-def _to_utc_iso(dt: datetime) -> str:
-    """Render *dt* as an ISO-8601 string normalised to UTC with a ``Z`` suffix."""
-    return dt.astimezone(UTC).isoformat().replace("+00:00", "Z")
-
-
 @app.get("/instances/{name}/timeline", tags=["instances"])
 async def get_instance_timeline(
     name: str,
@@ -334,14 +273,14 @@ async def get_instance_timeline(
     The echoed ``since``/``until`` are normalised to UTC (``Z`` suffix); raw
     ``events`` are passed through unchanged.
     """
-    since_dt, until_dt = _parse_time_window(since, until)
+    since_dt, until_dt = parse_window(since, until)
     registry: InstanceRegistry = request.app.state.registry
     session = registry.get(name)
     events = await session.fetch_timeline(since_dt, until_dt)
     return TimelineResponse(
         instance=name,
-        since=_to_utc_iso(since_dt),
-        until=_to_utc_iso(until_dt),
+        since=to_utc_iso(since_dt),
+        until=to_utc_iso(until_dt),
         count=len(events),
         events=events,
     )
