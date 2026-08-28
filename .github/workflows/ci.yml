@@ -61,7 +61,7 @@ jobs:
         id: tests
         run: |
           set +e
-          python -m pytest --cov=tr_bridge --cov-fail-under=97 \
+          python -m pytest --cov=tr_bridge --cov-fail-under=100 \
             --cov-report=term-missing \
             --cov-report=json 2>&1 | tee test-output.txt
           PYTEST_EXIT=${PIPESTATUS[0]}
