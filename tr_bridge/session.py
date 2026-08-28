@@ -13,12 +13,14 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import datetime
 from enum import StrEnum
 from pathlib import Path
 from typing import NoReturn
 
 import requests
 from pytr.api import TradeRepublicApi
+from pytr.timeline import Timeline
 
 from tr_bridge.config import InstanceConfig
 
@@ -47,6 +49,10 @@ class RateLimitedError(Exception):
 
 class TrUpstreamError(Exception):
     """Raised when a Trade Republic request fails with an unexpected upstream error."""
+
+
+class SessionExpiredError(Exception):
+    """Raised when a timeline is requested but no valid session is available."""
 
 
 class InvalidStateError(Exception):
@@ -198,6 +204,41 @@ class InstanceSession:
         self._state = SessionState.confirmed
         self._cancel_timeout()
         logger.info("Instance %r: confirmed via authenticator code.", self._config.name)
+
+    async def fetch_timeline(self, since: datetime, until: datetime) -> list[dict]:
+        """Fetch raw pytr timeline events in the ``[since, until)`` window.
+
+        Returns the raw pytr event dicts exactly as received, applying no
+        mapping or filtering beyond the time window handled by pytr.
+
+        Raises:
+            SessionExpiredError: if there is no confirmed session to query.
+            TrUpstreamError: if the pytr timeline request fails.
+        """
+        if self._state != SessionState.confirmed or self._api is None:
+            raise SessionExpiredError(
+                f"No valid session for instance {self._config.name!r}; login required."
+            )
+
+        timeline = Timeline(
+            self._api,
+            Path(self._session_dir),
+            not_before=since.timestamp(),
+            not_after=until.timestamp(),
+            store_event_database=False,
+        )
+        try:
+            await timeline.tl_loop()
+        except Exception as exc:
+            logger.warning(
+                "Instance %r: timeline fetch failed: %s", self._config.name, exc
+            )
+            detail = str(exc) or type(exc).__name__
+            raise TrUpstreamError(
+                f"Trade Republic timeline fetch failed for instance "
+                f"{self._config.name!r}: {detail}"
+            ) from exc
+        return list(timeline.events)
 
     # ------------------------------------------------------------------
     # Internal helpers

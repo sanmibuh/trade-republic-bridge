@@ -5,6 +5,7 @@ import logging
 import sys
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 from http import HTTPStatus
 from pathlib import Path
 
@@ -25,12 +26,18 @@ from tr_bridge.session import (
     LoginInProgressError,
     NoLoginPendingError,
     RateLimitedError,
+    SessionExpiredError,
     TrUpstreamError,
 )
 
 logger = logging.getLogger(__name__)
 
 _VERSION_FILE = Path(__file__).parent.parent / "VERSION"
+
+
+class InvalidRequestError(Exception):
+    """Raised when a request carries missing or malformed query parameters."""
+
 
 # Paths that bypass API-key authentication.
 _PUBLIC_PATHS: frozenset[str] = frozenset({"/health"})
@@ -228,6 +235,34 @@ async def _tr_upstream_error_handler(
     )
 
 
+@app.exception_handler(SessionExpiredError)
+async def _session_expired_handler(
+    request: Request, exc: SessionExpiredError
+) -> Response:
+    return problem_response(
+        ProblemDetail(
+            status=401,
+            code="session_expired",
+            title="Session expired",
+            detail=str(exc),
+        )
+    )
+
+
+@app.exception_handler(InvalidRequestError)
+async def _invalid_request_handler(
+    request: Request, exc: InvalidRequestError
+) -> Response:
+    return problem_response(
+        ProblemDetail(
+            status=400,
+            code="invalid_request",
+            title="Invalid request",
+            detail=str(exc),
+        )
+    )
+
+
 # ---------------------------------------------------------------------------
 # Response models
 # ---------------------------------------------------------------------------
@@ -260,6 +295,14 @@ class LoginStateResponse(BaseModel):
 
 class TwoFactorRequest(BaseModel):
     code: str
+
+
+class TimelineResponse(BaseModel):
+    instance: str
+    since: str
+    until: str
+    count: int
+    events: list[dict]
 
 
 # ---------------------------------------------------------------------------
@@ -333,6 +376,66 @@ async def post_instance_login_2fa(
     session = registry.get(name)
     await session.submit_2fa(body.code)
     return LoginStateResponse(state=session.state)
+
+
+def _parse_iso(value: str, field: str) -> datetime:
+    """Parse an ISO-8601 timestamp, normalising naive values to UTC.
+
+    Raises:
+        InvalidRequestError: if *value* is not a valid ISO-8601 timestamp.
+    """
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError as exc:
+        raise InvalidRequestError(
+            f"Query parameter {field!r} is not a valid ISO-8601 timestamp: {value!r}"
+        ) from exc
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed
+
+
+def _parse_time_window(
+    since: str | None, until: str | None
+) -> tuple[datetime, datetime]:
+    """Resolve the ``[since, until)`` window from raw query strings.
+
+    ``since`` is required; ``until`` defaults to the current time.
+
+    Raises:
+        InvalidRequestError: if ``since`` is missing or either value is malformed.
+    """
+    if since is None:
+        raise InvalidRequestError("Query parameter 'since' is required.")
+    since_dt = _parse_iso(since, "since")
+    until_dt = datetime.now(tz=UTC) if until is None else _parse_iso(until, "until")
+    return since_dt, until_dt
+
+
+@app.get("/instances/{name}/timeline", tags=["instances"])
+async def get_instance_timeline(
+    name: str,
+    request: Request,
+    since: str | None = None,
+    until: str | None = None,
+) -> TimelineResponse:
+    """Return raw pytr timeline events in the ``[since, until)`` window.
+
+    ``since`` is required; ``until`` defaults to now. Malformed timestamps raise
+    a ``400 invalid_request``; a missing session raises ``401 session_expired``;
+    a pytr failure raises ``502 tr_upstream_error``.
+    """
+    since_dt, until_dt = _parse_time_window(since, until)
+    registry: InstanceRegistry = request.app.state.registry
+    session = registry.get(name)
+    events = await session.fetch_timeline(since_dt, until_dt)
+    return TimelineResponse(
+        instance=name,
+        since=since_dt.isoformat(),
+        until=until_dt.isoformat(),
+        count=len(events),
+        events=events,
+    )
 
 
 def start() -> None:

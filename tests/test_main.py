@@ -3,6 +3,7 @@
 import importlib.metadata
 import sys
 from pathlib import Path
+from typing import ClassVar
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -25,6 +26,7 @@ from tr_bridge.session import (
     LoginInProgressError,
     NoLoginPendingError,
     RateLimitedError,
+    SessionExpiredError,
     SessionState,
     TrUpstreamError,
 )
@@ -419,10 +421,12 @@ class _FakeSession:
         state: SessionState = SessionState.idle,
         start_login: object | None = None,
         submit_2fa: object | None = None,
+        fetch_timeline: object | None = None,
     ) -> None:
         self.state = state
         self.start_login = start_login or AsyncMock(return_value=state)
         self.submit_2fa = submit_2fa or AsyncMock(return_value=None)
+        self.fetch_timeline = fetch_timeline or AsyncMock(return_value=[])
 
 
 def _client_with_session(session: object | None, cleanups: list) -> TestClient:
@@ -620,3 +624,103 @@ class TestLogin2faEndpoint:
         )
         assert resp.status_code == 502
         assert resp.json()["code"] == "tr_upstream_error"
+
+
+class TestTimelineEndpoint:
+    _EVENTS: ClassVar[list[dict]] = [
+        {"id": "e1", "timestamp": "2026-08-03T10:12:04.000+0000"}
+    ]
+
+    def test_timeline_happy_path(self, make_client) -> None:
+        session = _FakeSession(
+            state=SessionState.confirmed,
+            fetch_timeline=AsyncMock(return_value=self._EVENTS),
+        )
+        client = make_client(session)
+        resp = client.get(
+            "/instances/user1/timeline",
+            headers={"X-API-Key": "mykey"},
+            params={"since": "2026-08-01T00:00:00Z", "until": "2026-08-10T00:00:00Z"},
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["instance"] == "user1"
+        assert body["count"] == 1
+        assert body["events"] == self._EVENTS
+        session.fetch_timeline.assert_awaited_once()
+
+    def test_timeline_until_defaults_to_now(self, make_client) -> None:
+        session = _FakeSession(
+            state=SessionState.confirmed,
+            fetch_timeline=AsyncMock(return_value=[]),
+        )
+        client = make_client(session)
+        resp = client.get(
+            "/instances/user1/timeline",
+            headers={"X-API-Key": "mykey"},
+            params={"since": "2026-08-01T00:00:00Z"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["until"] != ""
+
+    def test_timeline_missing_since_returns_400(self, make_client) -> None:
+        session = _FakeSession(state=SessionState.confirmed)
+        client = make_client(session)
+        resp = client.get("/instances/user1/timeline", headers={"X-API-Key": "mykey"})
+        assert resp.status_code == 400
+        assert resp.json()["code"] == "invalid_request"
+
+    def test_timeline_bad_iso_returns_400(self, make_client) -> None:
+        session = _FakeSession(state=SessionState.confirmed)
+        client = make_client(session)
+        resp = client.get(
+            "/instances/user1/timeline",
+            headers={"X-API-Key": "mykey"},
+            params={"since": "not-a-date"},
+        )
+        assert resp.status_code == 400
+        assert resp.json()["code"] == "invalid_request"
+
+    def test_timeline_expired_session_returns_401(self, make_client) -> None:
+        session = _FakeSession(
+            fetch_timeline=AsyncMock(side_effect=SessionExpiredError("gone"))
+        )
+        client = make_client(session)
+        resp = client.get(
+            "/instances/user1/timeline",
+            headers={"X-API-Key": "mykey"},
+            params={"since": "2026-08-01T00:00:00Z"},
+        )
+        assert resp.status_code == 401
+        assert resp.json()["code"] == "session_expired"
+
+    def test_timeline_upstream_error_returns_502(self, make_client) -> None:
+        session = _FakeSession(
+            fetch_timeline=AsyncMock(side_effect=TrUpstreamError("boom"))
+        )
+        client = make_client(session)
+        resp = client.get(
+            "/instances/user1/timeline",
+            headers={"X-API-Key": "mykey"},
+            params={"since": "2026-08-01T00:00:00Z"},
+        )
+        assert resp.status_code == 502
+        assert resp.json()["code"] == "tr_upstream_error"
+
+    def test_timeline_unknown_instance_returns_404(self, make_client) -> None:
+        client = make_client(None)
+        resp = client.get(
+            "/instances/ghost/timeline",
+            headers={"X-API-Key": "mykey"},
+            params={"since": "2026-08-01T00:00:00Z"},
+        )
+        assert resp.status_code == 404
+
+    def test_timeline_requires_api_key(self, make_client) -> None:
+        session = _FakeSession(state=SessionState.confirmed)
+        client = make_client(session)
+        resp = client.get(
+            "/instances/user1/timeline",
+            params={"since": "2026-08-01T00:00:00Z"},
+        )
+        assert resp.status_code == 401
