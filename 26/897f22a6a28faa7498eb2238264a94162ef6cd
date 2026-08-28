@@ -1,0 +1,21 @@
+ARCHITECTURE.md
+  s_f3990d0dfc1e73::t_6092c7451f04a0 169-171
+tr_bridge/timewindow.py
+  s_f3990d0dfc1e73::t_19fd4b3a0ef0c3 4-8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "26897f22a6a28faa7498eb2238264a94162ef6cd",
+  "prompts": {},
+  "sessions": {
+    "s_f3990d0dfc1e73": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fb7a8e245ffewgrvdg6NPu1OyQ",
+        "model": "claude-opus-4.8"
+      },
+      "human_author": "David Belmez <sanmibuh@gmail.com>"
+    }
+  }
+}
