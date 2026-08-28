@@ -178,9 +178,13 @@ class InstanceSession:
         """
         if self._state != SessionState.authenticator:
             raise NoLoginPendingError(self._state)
-        # Defensive: reaching ``authenticator`` always sets ``_api`` first.
+        # Defensive: reaching ``authenticator`` always sets ``_api`` first. A
+        # violation is an internal invariant error, so surface it as a 500
+        # rather than a misleading 409 "no_login_pending".
         if self._api is None:  # pragma: no cover
-            raise NoLoginPendingError(self._state)
+            raise RuntimeError(
+                f"Instance {self._config.name!r}: authenticator state without an API."
+            )
         api = self._api
         loop = asyncio.get_running_loop()
         try:
@@ -353,6 +357,7 @@ class InstanceSession:
             )
             self._state = SessionState.failed
             self._cancel_timeout()
+            self._push_task = None
             return
         loop = asyncio.get_running_loop()
         try:
