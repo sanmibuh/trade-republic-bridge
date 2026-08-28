@@ -326,13 +326,9 @@ class TestDomainExceptionHandlers:
     def _make_app_with_handlers(self) -> "FastAPI":
         from fastapi import FastAPI
 
+        from tr_bridge.errors import DomainError
         from tr_bridge.instance_registry import InstanceNotFoundError
-        from tr_bridge.main import (
-            _code_rejected_handler,
-            _instance_not_found_handler,
-            _invalid_state_handler,
-            _login_in_progress_handler,
-        )
+        from tr_bridge.main import _domain_error_handler
         from tr_bridge.session import (
             CodeRejectedError,
             InvalidStateError,
@@ -341,12 +337,8 @@ class TestDomainExceptionHandlers:
         )
 
         test_app = FastAPI()
-        test_app.add_exception_handler(
-            InstanceNotFoundError, _instance_not_found_handler
-        )
-        test_app.add_exception_handler(LoginInProgressError, _login_in_progress_handler)
-        test_app.add_exception_handler(CodeRejectedError, _code_rejected_handler)
-        test_app.add_exception_handler(InvalidStateError, _invalid_state_handler)
+        # A single generic handler covers every domain error via the MRO.
+        test_app.add_exception_handler(DomainError, _domain_error_handler)
 
         @test_app.get("/_not_found")
         async def _raise_not_found():

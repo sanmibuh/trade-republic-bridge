@@ -23,6 +23,7 @@ from pytr.api import TradeRepublicApi
 from pytr.timeline import Timeline
 
 from tr_bridge.config import InstanceConfig
+from tr_bridge.errors import DomainError
 
 logger = logging.getLogger(__name__)
 
@@ -35,28 +36,52 @@ class SessionState(StrEnum):
     failed = "failed"
 
 
-class LoginInProgressError(Exception):
+class LoginInProgressError(DomainError):
     """Raised when a login is initiated while one is already in progress."""
 
+    status = 409
+    code = "login_in_progress"
+    title = "Login already in progress"
 
-class CodeRejectedError(Exception):
+
+class CodeRejectedError(DomainError):
     """Raised when a submitted 2FA code is rejected by Trade Republic."""
 
+    status = 401
+    code = "code_rejected"
+    title = "2FA code rejected"
 
-class RateLimitedError(Exception):
+
+class RateLimitedError(DomainError):
     """Raised when Trade Republic rejects a login with HTTP 429 (rate limit)."""
 
+    status = 429
+    code = "rate_limited"
+    title = "Rate limited"
 
-class TrUpstreamError(Exception):
+
+class TrUpstreamError(DomainError):
     """Raised when a Trade Republic request fails with an unexpected upstream error."""
 
+    status = 502
+    code = "tr_upstream_error"
+    title = "Trade Republic upstream error"
 
-class SessionExpiredError(Exception):
+
+class SessionExpiredError(DomainError):
     """Raised when a timeline is requested but no valid session is available."""
 
+    status = 401
+    code = "session_expired"
+    title = "Session expired"
 
-class InvalidStateError(Exception):
+
+class InvalidStateError(DomainError):
     """Raised when an operation is attempted in an incompatible state."""
+
+    status = 409
+    code = "invalid_state"
+    title = "Operation not valid in current state"
 
     def __init__(self, state: SessionState) -> None:
         super().__init__(f"Operation not valid in state {state.value!r}")
@@ -65,6 +90,13 @@ class InvalidStateError(Exception):
 
 class NoLoginPendingError(InvalidStateError):
     """Raised when a 2FA code is submitted but no login is awaiting a code."""
+
+    code = "no_login_pending"
+    title = "No login pending"
+
+    @property
+    def detail(self) -> str:
+        return "No login is awaiting a 2FA code; start a login first."
 
 
 class InstanceSession:
