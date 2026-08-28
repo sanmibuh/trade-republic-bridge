@@ -14,14 +14,7 @@ from starlette.exceptions import HTTPException
 from starlette.requests import Request
 
 import tr_bridge.main as main_module
-from tr_bridge.main import (
-    _auth_middleware,
-    _http_exception_handler,
-    _request_validation_error_handler,
-    _unhandled_exception_handler,
-    app,
-)
-from tr_bridge.session import (
+from tr_bridge.domain.state import (
     CodeRejectedError,
     LoginInProgressError,
     NoLoginPendingError,
@@ -29,6 +22,13 @@ from tr_bridge.session import (
     SessionExpiredError,
     SessionState,
     TrUpstreamError,
+)
+from tr_bridge.main import (
+    _auth_middleware,
+    _http_exception_handler,
+    _request_validation_error_handler,
+    _unhandled_exception_handler,
+    app,
 )
 
 
@@ -107,6 +107,21 @@ class TestHttpExceptionHandler:
         body = resp.json()
         assert body["status"] == 403
         assert body["detail"] == "Forbidden resource"
+
+    def test_http_exception_unknown_status_falls_back_to_generic_phrase(self) -> None:
+        """A non-standard status code must not crash the handler's title lookup."""
+        test_app = _make_http_exception_app()
+
+        @test_app.get("/_test_799")
+        async def _weird():
+            raise HTTPException(status_code=799, detail="weird")
+
+        client = TestClient(test_app, raise_server_exceptions=False)
+        resp = client.get("/_test_799")
+
+        assert resp.status_code == 799
+        body = resp.json()
+        assert body["title"] == "HTTP Error"
 
 
 class TestRequestValidationErrorHandler:
@@ -326,15 +341,15 @@ class TestDomainExceptionHandlers:
     def _make_app_with_handlers(self) -> "FastAPI":
         from fastapi import FastAPI
 
-        from tr_bridge.errors import DomainError
-        from tr_bridge.instance_registry import InstanceNotFoundError
-        from tr_bridge.main import _domain_error_handler
-        from tr_bridge.session import (
+        from tr_bridge.domain.state import (
             CodeRejectedError,
             InvalidStateError,
             LoginInProgressError,
             SessionState,
         )
+        from tr_bridge.errors import DomainError
+        from tr_bridge.instance_registry import InstanceNotFoundError
+        from tr_bridge.main import _domain_error_handler
 
         test_app = FastAPI()
         # A single generic handler covers every domain error via the MRO.

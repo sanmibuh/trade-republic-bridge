@@ -1,13 +1,20 @@
-"""Instance registry — initialises and provides access to per-instance sessions."""
+"""Instance registry — composition factory for per-instance sessions.
+
+Acts as the per-instance composition root: for every configured instance it
+builds the pytr secondary adapter (:class:`PytrClient`) and injects it into the
+login/2FA use case (:class:`InstanceSession`). The rest of the service depends
+only on the use case, never on pytr.
+"""
 
 from __future__ import annotations
 
 import asyncio
 import logging
 
+from tr_bridge.adapters.pytr.pytr_client import PytrClient
+from tr_bridge.application.session import InstanceSession
 from tr_bridge.config import Config
 from tr_bridge.errors import DomainError
-from tr_bridge.session import InstanceSession
 
 logger = logging.getLogger(__name__)
 
@@ -29,13 +36,16 @@ class InstanceNotFoundError(DomainError):
 
 
 class InstanceRegistry:
-    """Holds one :class:`~tr_bridge.session.InstanceSession` per configured instance."""
+    """Holds one ``InstanceSession`` (application use case) per configured instance."""
 
     def __init__(self, config: Config) -> None:
         self._sessions: dict[str, InstanceSession] = {
             inst.name: InstanceSession(
-                config=inst,
-                session_dir=config.session_dir(inst.name),
+                name=inst.name,
+                client=PytrClient(
+                    config=inst,
+                    session_dir=config.session_dir(inst.name),
+                ),
                 tfa_timeout=config.tfa_timeout,
             )
             for inst in config.instances
