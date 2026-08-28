@@ -202,7 +202,7 @@ Fetch raw pytr timeline events in the half-open interval `[since, until)`.
 | Parameter | Required | Description |
 |-----------|----------|-------------|
 | `since`   | yes      | ISO-8601 timestamp, inclusive lower bound |
-| `until`   | no       | ISO-8601 timestamp, exclusive upper bound (default: now) |
+| `until`   | no       | ISO-8601 timestamp, exclusive upper bound (default: now); must be later than `since` |
 
 **Response `200`**
 ```json

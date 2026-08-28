@@ -681,6 +681,42 @@ class TestTimelineEndpoint:
         assert resp.status_code == 400
         assert resp.json()["code"] == "invalid_request"
 
+    def test_timeline_accepts_z_suffix_utc_timestamps(self, make_client) -> None:
+        """RFC 3339 'Z' UTC suffix must be accepted (Python >= 3.11)."""
+        session = _FakeSession(
+            state=SessionState.confirmed,
+            fetch_timeline=AsyncMock(return_value=[]),
+        )
+        client = make_client(session)
+        resp = client.get(
+            "/instances/user1/timeline",
+            headers={"X-API-Key": "mykey"},
+            params={"since": "2026-08-01T00:00:00Z", "until": "2026-08-10T00:00:00Z"},
+        )
+        assert resp.status_code == 200
+
+    def test_timeline_until_not_after_since_returns_400(self, make_client) -> None:
+        session = _FakeSession(state=SessionState.confirmed)
+        client = make_client(session)
+        resp = client.get(
+            "/instances/user1/timeline",
+            headers={"X-API-Key": "mykey"},
+            params={"since": "2026-08-10T00:00:00Z", "until": "2026-08-01T00:00:00Z"},
+        )
+        assert resp.status_code == 400
+        assert resp.json()["code"] == "invalid_request"
+
+    def test_timeline_until_equal_to_since_returns_400(self, make_client) -> None:
+        session = _FakeSession(state=SessionState.confirmed)
+        client = make_client(session)
+        resp = client.get(
+            "/instances/user1/timeline",
+            headers={"X-API-Key": "mykey"},
+            params={"since": "2026-08-01T00:00:00Z", "until": "2026-08-01T00:00:00Z"},
+        )
+        assert resp.status_code == 400
+        assert resp.json()["code"] == "invalid_request"
+
     def test_timeline_expired_session_returns_401(self, make_client) -> None:
         session = _FakeSession(
             fetch_timeline=AsyncMock(side_effect=SessionExpiredError("gone"))

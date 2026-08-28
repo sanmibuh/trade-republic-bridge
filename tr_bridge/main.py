@@ -403,12 +403,18 @@ def _parse_time_window(
     ``since`` is required; ``until`` defaults to the current time.
 
     Raises:
-        InvalidRequestError: if ``since`` is missing or either value is malformed.
+        InvalidRequestError: if ``since`` is missing, either value is malformed,
+            or ``until`` is not strictly later than ``since``.
     """
     if since is None:
         raise InvalidRequestError("Query parameter 'since' is required.")
     since_dt = _parse_iso(since, "since")
     until_dt = datetime.now(tz=UTC) if until is None else _parse_iso(until, "until")
+    if until_dt <= since_dt:
+        raise InvalidRequestError(
+            f"Query parameter 'until' ({until_dt.isoformat()}) must be later than "
+            f"'since' ({since_dt.isoformat()})."
+        )
     return since_dt, until_dt
 
 
