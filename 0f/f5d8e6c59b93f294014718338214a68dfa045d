@@ -1,0 +1,14 @@
+tr_bridge/adapters/web/handlers.py
+  h_35ce34583c4794 56,71,84,96
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "0ff5d8e6c59b93f294014718338214a68dfa045d",
+  "prompts": {},
+  "humans": {
+    "h_35ce34583c4794": {
+      "author": "David Belmez <sanmibuh@gmail.com>"
+    }
+  }
+}
