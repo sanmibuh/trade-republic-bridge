@@ -1,0 +1,16 @@
+tests/test_session.py
+  h_35ce34583c4794 6-7,59-98,163,169-181,183-194,258,267-269,278-280,290-293,306-308,320-323,334,340,345,348-354,391
+tr_bridge/session.py
+  h_35ce34583c4794 181-182,347-348
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "b2169f0d811d3d40b0364f85b2d8199529f0e821",
+  "prompts": {},
+  "humans": {
+    "h_35ce34583c4794": {
+      "author": "David Belmez <sanmibuh@gmail.com>"
+    }
+  }
+}
