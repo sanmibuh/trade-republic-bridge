@@ -27,4 +27,4 @@ line-ending = "lf"
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
-addopts = "--tb=short -q"
+addopts = "--tb=short -q --cov=tr_bridge --cov-report=term-missing --cov-fail-under=100"
