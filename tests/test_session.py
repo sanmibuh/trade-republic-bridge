@@ -438,3 +438,17 @@ class TestFetchTimeline:
             pytest.raises(TrUpstreamError, match="ws boom"),
         ):
             await session.fetch_timeline(self._SINCE, self._UNTIL)
+
+    @pytest.mark.asyncio
+    async def test_cancellation_propagates(self, tmp_path: Path) -> None:
+        session = await _confirmed_session(tmp_path)
+
+        class _CancelledTimeline(_FakeTimeline):
+            async def tl_loop(self) -> None:
+                raise asyncio.CancelledError
+
+        with (
+            patch("tr_bridge.session.Timeline", _CancelledTimeline),
+            pytest.raises(asyncio.CancelledError),
+        ):
+            await session.fetch_timeline(self._SINCE, self._UNTIL)
