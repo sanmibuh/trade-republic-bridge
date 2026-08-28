@@ -41,6 +41,24 @@ class DomainError(Exception):
     code: ClassVar[str]
     title: ClassVar[str]
 
+    _REQUIRED_ATTRS: ClassVar[tuple[str, ...]] = ("status", "code", "title")
+
+    def __init_subclass__(cls, **kwargs: object) -> None:
+        """Fail fast when a subclass omits a required Problem-mapping attribute.
+
+        Attributes may be inherited from an intermediate ``DomainError`` parent,
+        so the check looks them up on the class (not just its own ``__dict__``).
+        This prevents a misconfigured error from silently degrading to the 500
+        catch-all handler at request time.
+        """
+        super().__init_subclass__(**kwargs)
+        missing = [attr for attr in cls._REQUIRED_ATTRS if not hasattr(cls, attr)]
+        if missing:
+            raise TypeError(
+                f"{cls.__name__} must define {', '.join(missing)} "
+                f"as class attribute(s)."
+            )
+
     @property
     def detail(self) -> str:
         """Human-readable explanation; defaults to the exception message."""

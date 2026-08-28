@@ -1,5 +1,6 @@
 """Tests for tr_bridge.errors — RFC 9457 Problem Details helpers."""
 
+import pytest
 from fastapi.testclient import TestClient
 from starlette.applications import Starlette
 from starlette.routing import Route
@@ -125,3 +126,26 @@ class TestDomainError:
         problem = FixedDetailError("internal message").to_problem_detail()
 
         assert problem.detail == "a fixed, message-independent explanation"
+
+    def test_subclass_missing_required_attribute_fails_fast(self) -> None:
+        """A subclass that forgets status/code/title must fail at definition time."""
+        with pytest.raises(TypeError, match="must define"):
+
+            class BrokenError(DomainError):
+                code = "broken"
+                title = "Broken"
+                # 'status' intentionally omitted
+
+    def test_subclass_may_inherit_required_attributes_from_parent(self) -> None:
+        """Intermediate subclasses may inherit the mapping without redeclaring it."""
+
+        class ParentError(DomainError):
+            status = 409
+            code = "parent"
+            title = "Parent"
+
+        class ChildError(ParentError):
+            code = "child"
+
+        assert ChildError("boom").to_problem_detail().status == 409
+        assert ChildError("boom").to_problem_detail().code == "child"
