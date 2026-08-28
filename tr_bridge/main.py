@@ -19,7 +19,14 @@ from tr_bridge.auth import UnauthorizedException, check_api_key
 from tr_bridge.config import Config
 from tr_bridge.errors import ProblemDetail, problem_response
 from tr_bridge.instance_registry import InstanceNotFoundError, InstanceRegistry
-from tr_bridge.session import CodeRejectedError, InvalidStateError, LoginInProgressError
+from tr_bridge.session import (
+    CodeRejectedError,
+    InvalidStateError,
+    LoginInProgressError,
+    NoLoginPendingError,
+    RateLimitedError,
+    TrUpstreamError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -181,6 +188,46 @@ async def _invalid_state_handler(request: Request, exc: InvalidStateError) -> Re
     )
 
 
+@app.exception_handler(NoLoginPendingError)
+async def _no_login_pending_handler(
+    request: Request, exc: NoLoginPendingError
+) -> Response:
+    return problem_response(
+        ProblemDetail(
+            status=409,
+            code="no_login_pending",
+            title="No login pending",
+            detail="No login is awaiting a 2FA code; start a login first.",
+        )
+    )
+
+
+@app.exception_handler(RateLimitedError)
+async def _rate_limited_handler(request: Request, exc: RateLimitedError) -> Response:
+    return problem_response(
+        ProblemDetail(
+            status=429,
+            code="rate_limited",
+            title="Rate limited",
+            detail=str(exc),
+        )
+    )
+
+
+@app.exception_handler(TrUpstreamError)
+async def _tr_upstream_error_handler(
+    request: Request, exc: TrUpstreamError
+) -> Response:
+    return problem_response(
+        ProblemDetail(
+            status=502,
+            code="tr_upstream_error",
+            title="Trade Republic upstream error",
+            detail=str(exc),
+        )
+    )
+
+
 # ---------------------------------------------------------------------------
 # Response models
 # ---------------------------------------------------------------------------
@@ -200,6 +247,19 @@ class HealthResponse(BaseModel):
 
 class InstancesResponse(BaseModel):
     instances: list[str]
+
+
+class StatusResponse(BaseModel):
+    name: str
+    state: str
+
+
+class LoginStateResponse(BaseModel):
+    state: str
+
+
+class TwoFactorRequest(BaseModel):
+    code: str
 
 
 # ---------------------------------------------------------------------------
@@ -234,6 +294,45 @@ async def get_instances(request: Request) -> InstancesResponse:
     """List all configured instance names — requires X-API-Key."""
     config: Config = request.app.state.config
     return InstancesResponse(instances=config.instance_names)
+
+
+@app.get("/instances/{name}/status", tags=["instances"])
+async def get_instance_status(name: str, request: Request) -> StatusResponse:
+    """Return the current login state for *name*.
+
+    Raises ``InstanceNotFoundError`` (404) if the instance is unknown.
+    """
+    registry: InstanceRegistry = request.app.state.registry
+    session = registry.get(name)
+    return StatusResponse(name=name, state=session.state)
+
+
+@app.post("/instances/{name}/login", tags=["instances"])
+async def post_instance_login(name: str, request: Request) -> LoginStateResponse:
+    """Initiate login for *name* and return the resulting state.
+
+    Raises a problem detail on ``login_in_progress``, ``rate_limited`` or
+    ``tr_upstream_error``.
+    """
+    registry: InstanceRegistry = request.app.state.registry
+    session = registry.get(name)
+    state = await session.start_login()
+    return LoginStateResponse(state=state)
+
+
+@app.post("/instances/{name}/login/2fa", tags=["instances"])
+async def post_instance_login_2fa(
+    name: str, body: TwoFactorRequest, request: Request
+) -> LoginStateResponse:
+    """Submit a 2FA authenticator code to complete a pending login.
+
+    Raises a problem detail on ``code_rejected``, ``no_login_pending``,
+    ``rate_limited`` or ``tr_upstream_error``.
+    """
+    registry: InstanceRegistry = request.app.state.registry
+    session = registry.get(name)
+    await session.submit_2fa(body.code)
+    return LoginStateResponse(state=session.state)
 
 
 def start() -> None:
