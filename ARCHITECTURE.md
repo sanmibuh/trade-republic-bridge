@@ -162,6 +162,12 @@ a fresh login. This is the only reliable signal.
 `timelineDetailV2` payloads. The bridge applies no mapping, deduplication, or filtering beyond the
 `[since, until)` time window.
 
+The `[since, until)` window itself is parsed and validated by a dedicated `tr_bridge/timewindow.py`
+module, keeping this domain-ish logic out of the FastAPI entry point. Its public surface is
+`parse_window(since, until) -> (datetime, datetime)` and `to_utc_iso(dt)`; it owns the validation
+contract (`since` required, `until` defaults to now, `until` strictly after `since`, date-only values
+rejected) and raises `InvalidRequestError` (`400 invalid_request`) on malformed input.
+
 Rationale:
 
 - Mapping logic belongs in downstream consumers; keeping it out of the bridge avoids coupling the bridge
