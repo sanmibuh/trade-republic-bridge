@@ -215,6 +215,38 @@ If a login enters `authenticator` or `push` state and no code is submitted / no 
 configured timeout, the state transitions to `failed` and a subsequent `/status` call returns `failed`.
 A fresh `POST /login` is required to retry.
 
+### Why a state machine (and why it can't just delegate to pytr)
+
+A recurring design question is whether the bridge could skip the state machine and simply delegate to
+pytr. It cannot: there is a fundamental impedance mismatch between pytr — a **stateful, blocking,
+multi-step SDK** — and the bridge's **stateless, polling REST API**. The five states
+(`idle/authenticator/push/confirmed/failed`) are the minimum required to reconcile the two, not
+business logic.
+
+- **A multi-step conversation is split across separate HTTP requests.** pytr login is
+  `initiate_weblogin()` and then, later, `complete_weblogin(code)` on the *same* `TradeRepublicApi`
+  object, which holds the challenge / process id server-side. `POST /login` and `POST /login/2fa` are
+  independent requests, so the in-flight api object must be held in memory between them. It cannot be
+  serialized back to the client because it carries credentials and cookies.
+- **`authenticator` vs `push` are distinct observable outcomes.** The caller must know whether to
+  submit a code or to poll for approval. pytr only exposes a `weblogin_needs_authenticator` flag; the
+  bridge must surface that distinction as queryable state.
+- **`push` is blocking.** `complete_weblogin()` blocks until the user approves in the app. A REST
+  request cannot be held open that long, so a background task drives the blocking call while the
+  caller polls `/status` — which requires a "push in progress" state that resolves to `confirmed` or
+  `failed`.
+- **pytr offers no cheap status query.** There is no lightweight liveness ping; session expiry is only
+  discovered via a `401` on `/timeline`. The current state must therefore be derived and tracked by
+  the bridge, not read back from the library.
+- **REST exposes concurrency that the SDK does not model.** Independent HTTP requests can race, hence
+  the `409 login_in_progress` guard enforcing a single in-flight login per instance, and the 2FA
+  timeout → `failed` policy that avoids stuck states and frees background tasks.
+
+Each of the five states therefore maps to a distinct observable REST behaviour. This is the *minimum*
+state required to bridge a stateful blocking flow onto a stateless polling API — removing it would
+require either holding HTTP requests open indefinitely or leaking pytr's in-memory session object to
+clients, neither of which is viable.
+
 ---
 
 ## No exposed session state
