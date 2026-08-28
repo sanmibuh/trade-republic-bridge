@@ -230,9 +230,9 @@ class InstanceSession:
         try:
             await timeline.tl_loop()
         except Exception as exc:
-            # asyncio.CancelledError derives from BaseException (Python >= 3.8),
-            # so it is intentionally not caught here and propagates for graceful
-            # task cancellation.
+            # asyncio.CancelledError is a BaseException, not an Exception, so it
+            # is intentionally not caught here and propagates for graceful task
+            # cancellation.
             logger.warning(
                 "Instance %r: timeline fetch failed: %s",
                 self._config.name,

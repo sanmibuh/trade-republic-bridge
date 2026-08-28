@@ -227,6 +227,9 @@ Fetch raw pytr timeline events in the half-open interval `[since, until)`.
 `events` are raw pytr dicts. Their shape mirrors pytr output and is **not** guaranteed by the bridge;
 consumers must tolerate unknown keys.
 
+The echoed `since`/`until` are normalised to UTC and rendered with a `Z` suffix regardless of the
+offset supplied in the request. Raw `events` keep pytr's original timestamp format unchanged.
+
 | Problem code     | HTTP | When |
 |------------------|------|------|
 | `session_expired`| 401  | No valid TR session — re-login required |

@@ -426,6 +426,11 @@ def _parse_time_window(
     return since_dt, until_dt
 
 
+def _to_utc_iso(dt: datetime) -> str:
+    """Render *dt* as an ISO-8601 string normalised to UTC with a ``Z`` suffix."""
+    return dt.astimezone(UTC).isoformat().replace("+00:00", "Z")
+
+
 @app.get("/instances/{name}/timeline", tags=["instances"])
 async def get_instance_timeline(
     name: str,
@@ -438,6 +443,9 @@ async def get_instance_timeline(
     ``since`` is required; ``until`` defaults to now. Malformed timestamps raise
     a ``400 invalid_request``; a missing session raises ``401 session_expired``;
     a pytr failure raises ``502 tr_upstream_error``.
+
+    The echoed ``since``/``until`` are normalised to UTC (``Z`` suffix); raw
+    ``events`` are passed through unchanged.
     """
     since_dt, until_dt = _parse_time_window(since, until)
     registry: InstanceRegistry = request.app.state.registry
@@ -445,8 +453,8 @@ async def get_instance_timeline(
     events = await session.fetch_timeline(since_dt, until_dt)
     return TimelineResponse(
         instance=name,
-        since=since_dt.isoformat(),
-        until=until_dt.isoformat(),
+        since=_to_utc_iso(since_dt),
+        until=_to_utc_iso(until_dt),
         count=len(events),
         events=events,
     )

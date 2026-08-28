@@ -645,9 +645,31 @@ class TestTimelineEndpoint:
         assert resp.status_code == 200
         body = resp.json()
         assert body["instance"] == "user1"
+        assert body["since"] == "2026-08-01T00:00:00Z"
+        assert body["until"] == "2026-08-10T00:00:00Z"
         assert body["count"] == 1
         assert body["events"] == self._EVENTS
         session.fetch_timeline.assert_awaited_once()
+
+    def test_timeline_normalizes_non_utc_offset_to_utc(self, make_client) -> None:
+        """Non-UTC input offsets are converted to UTC (Z) in the response."""
+        session = _FakeSession(
+            state=SessionState.confirmed,
+            fetch_timeline=AsyncMock(return_value=[]),
+        )
+        client = make_client(session)
+        resp = client.get(
+            "/instances/user1/timeline",
+            headers={"X-API-Key": "mykey"},
+            params={
+                "since": "2026-08-01T02:00:00+02:00",
+                "until": "2026-08-10T05:30:00+05:30",
+            },
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["since"] == "2026-08-01T00:00:00Z"
+        assert body["until"] == "2026-08-10T00:00:00Z"
 
     def test_timeline_until_defaults_to_now(self, make_client) -> None:
         session = _FakeSession(
