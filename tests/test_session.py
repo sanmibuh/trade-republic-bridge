@@ -99,8 +99,25 @@ async def _pending_push_session(
     api.complete_weblogin.side_effect = _block_until_released
     with patch("tr_bridge.session.TradeRepublicApi", return_value=api):
         state = await session.start_login()
-    assert state == SessionState.push
+    if state != SessionState.push:
+        # Unblock the background thread immediately so a failure does not stall
+        # for the executor timeout before surfacing.
+        release.set()
+        raise AssertionError(f"expected push state, got {state}")
     return session, release
+
+
+async def _wait_until_left_push(session: InstanceSession) -> None:
+    """Poll until *session* leaves the ``push`` state (deterministic teardown).
+
+    Lets the unblocked push-confirmation task settle without depending on a
+    fixed sleep, so slow CI runners cannot leak a pending task.
+    """
+    for _ in range(100):
+        if session.state != SessionState.push:
+            return
+        await asyncio.sleep(0.01)
+    raise AssertionError("push confirmation task never completed")
 
 
 class TestInitialState:
@@ -179,9 +196,9 @@ class TestStartLogin:
                 await session.start_login()
         finally:
             release.set()
-            # Let the unblocked push-confirmation task finish before teardown
-            # so it does not linger as a pending task on the event loop.
-            await asyncio.sleep(0.05)
+            # Wait deterministically for the push task to leave ``push`` so it
+            # does not linger as a pending task on the event loop.
+            await _wait_until_left_push(session)
 
     @pytest.mark.asyncio
     async def test_second_login_racing_for_the_lock_raises_409(
