@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import threading
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import ClassVar
@@ -52,6 +54,70 @@ def _mock_api(
     else:
         api.complete_weblogin.return_value = None
     return api
+
+
+async def _authenticator_session(
+    tmp_path: Path,
+    complete_raises: Exception | None = None,
+    tfa_timeout: int = _TFA_TIMEOUT,
+) -> tuple[InstanceSession, MagicMock]:
+    """Drive a session into the ``authenticator`` state via the public API.
+
+    Returns the session together with the mock API so callers can assert on
+    ``complete_weblogin`` without touching any private attribute.
+    """
+    session = _make_session(tmp_path, tfa_timeout=tfa_timeout)
+    api = _mock_api(
+        resume_returns=False,
+        needs_authenticator=True,
+        complete_raises=complete_raises,
+    )
+    with patch("tr_bridge.session.TradeRepublicApi", return_value=api):
+        state = await session.start_login()
+    assert state == SessionState.authenticator
+    return session, api
+
+
+async def _pending_push_session(
+    tmp_path: Path,
+) -> tuple[InstanceSession, threading.Event]:
+    """Drive a session into the ``push`` state and hold it there.
+
+    ``complete_weblogin`` blocks on the returned event so the background push
+    task cannot confirm the session until the caller releases it.
+    """
+    session = _make_session(tmp_path)
+    release = threading.Event()
+    api = _mock_api(resume_returns=False, needs_authenticator=False)
+
+    def _block_until_released(*_args: object) -> None:
+        # Fail loudly instead of silently confirming if the caller never
+        # releases the event, so a stuck thread can never mask a bug.
+        if not release.wait(timeout=5):
+            raise TimeoutError("push confirmation was never released by the test")
+
+    api.complete_weblogin.side_effect = _block_until_released
+    with patch("tr_bridge.session.TradeRepublicApi", return_value=api):
+        state = await session.start_login()
+    if state != SessionState.push:
+        # Unblock the background thread immediately so a failure does not stall
+        # for the executor timeout before surfacing.
+        release.set()
+        raise AssertionError(f"expected push state, got {state}")
+    return session, release
+
+
+async def _wait_until_left_push(session: InstanceSession) -> None:
+    """Poll until *session* leaves the ``push`` state (deterministic teardown).
+
+    Lets the unblocked push-confirmation task settle without depending on a
+    fixed sleep, so slow CI runners cannot leak a pending task.
+    """
+    for _ in range(100):
+        if session.state != SessionState.push:
+            return
+        await asyncio.sleep(0.01)
+    raise AssertionError("push confirmation task never completed")
 
 
 class TestInitialState:
@@ -118,17 +184,41 @@ class TestStartLogin:
     async def test_concurrent_login_raises_409_from_authenticator(
         self, tmp_path: Path
     ) -> None:
-        session = _make_session(tmp_path)
-        session._state = SessionState.authenticator
+        session, _api = await _authenticator_session(tmp_path)
         with pytest.raises(LoginInProgressError):
             await session.start_login()
 
     @pytest.mark.asyncio
     async def test_concurrent_login_raises_409_from_push(self, tmp_path: Path) -> None:
+        session, release = await _pending_push_session(tmp_path)
+        try:
+            with pytest.raises(LoginInProgressError):
+                await session.start_login()
+        finally:
+            release.set()
+            # Wait deterministically for the push task to leave ``push`` so it
+            # does not linger as a pending task on the event loop.
+            await _wait_until_left_push(session)
+
+    @pytest.mark.asyncio
+    async def test_second_login_racing_for_the_lock_raises_409(
+        self, tmp_path: Path
+    ) -> None:
+        # Two logins started from ``idle`` both pass the pre-lock guard; the
+        # second must be rejected once it acquires the lock and re-checks state.
         session = _make_session(tmp_path)
-        session._state = SessionState.push
-        with pytest.raises(LoginInProgressError):
-            await session.start_login()
+        api = _mock_api(resume_returns=False, needs_authenticator=True)
+        with patch("tr_bridge.session.TradeRepublicApi", return_value=api):
+            results = await asyncio.gather(
+                session.start_login(),
+                session.start_login(),
+                return_exceptions=True,
+            )
+        errors = [r for r in results if isinstance(r, Exception)]
+        successes = [r for r in results if not isinstance(r, Exception)]
+        assert successes == [SessionState.authenticator]
+        assert len(errors) == 1
+        assert isinstance(errors[0], LoginInProgressError)
 
     @staticmethod
     def _http_error(status_code: int) -> requests.exceptions.HTTPError:
@@ -192,10 +282,7 @@ class TestStartLogin:
 class TestSubmit2FA:
     @pytest.mark.asyncio
     async def test_submit_2fa_confirms_session(self, tmp_path: Path) -> None:
-        session = _make_session(tmp_path)
-        api = _mock_api()
-        session._api = api
-        session._state = SessionState.authenticator
+        session, api = await _authenticator_session(tmp_path)
         await session.submit_2fa("123456")
         assert session.state == SessionState.confirmed
         api.complete_weblogin.assert_called_once_with("123456")
@@ -204,24 +291,21 @@ class TestSubmit2FA:
     async def test_submit_2fa_raises_code_rejected_on_wrong_code(
         self, tmp_path: Path
     ) -> None:
-        session = _make_session(tmp_path)
-        api = _mock_api(complete_raises=ValueError("wrong code"))
-        session._api = api
-        session._state = SessionState.authenticator
+        session, _api = await _authenticator_session(
+            tmp_path, complete_raises=ValueError("wrong code")
+        )
         with pytest.raises(CodeRejectedError):
             await session.submit_2fa("000000")
         assert session.state == SessionState.authenticator
 
     @pytest.mark.asyncio
     async def test_submit_2fa_rate_limited_on_429(self, tmp_path: Path) -> None:
-        session = _make_session(tmp_path)
         response = requests.Response()
         response.status_code = 429
-        api = _mock_api(
-            complete_raises=requests.exceptions.HTTPError(response=response)
+        session, _api = await _authenticator_session(
+            tmp_path,
+            complete_raises=requests.exceptions.HTTPError(response=response),
         )
-        session._api = api
-        session._state = SessionState.authenticator
         with pytest.raises(RateLimitedError):
             await session.submit_2fa("123456")
         assert session.state == SessionState.failed
@@ -230,10 +314,10 @@ class TestSubmit2FA:
     async def test_submit_2fa_upstream_error_on_request_exception(
         self, tmp_path: Path
     ) -> None:
-        session = _make_session(tmp_path)
-        api = _mock_api(complete_raises=requests.exceptions.ConnectionError("boom"))
-        session._api = api
-        session._state = SessionState.authenticator
+        session, _api = await _authenticator_session(
+            tmp_path,
+            complete_raises=requests.exceptions.ConnectionError("boom"),
+        )
         with pytest.raises(TrUpstreamError):
             await session.submit_2fa("123456")
         assert session.state == SessionState.failed
@@ -242,16 +326,14 @@ class TestSubmit2FA:
     async def test_upstream_error_message_includes_status_and_instance(
         self, tmp_path: Path
     ) -> None:
-        session = _make_session(tmp_path)
         response = requests.Response()
         response.status_code = 503
         # HTTPError raised without args stringifies to "" — the message must
         # still carry the status code and instance name.
-        api = _mock_api(
-            complete_raises=requests.exceptions.HTTPError(response=response)
+        session, _api = await _authenticator_session(
+            tmp_path,
+            complete_raises=requests.exceptions.HTTPError(response=response),
         )
-        session._api = api
-        session._state = SessionState.authenticator
         with pytest.raises(TrUpstreamError) as excinfo:
             await session.submit_2fa("123456")
         message = str(excinfo.value)
@@ -262,10 +344,10 @@ class TestSubmit2FA:
     async def test_upstream_error_message_falls_back_to_exception_type(
         self, tmp_path: Path
     ) -> None:
-        session = _make_session(tmp_path)
-        api = _mock_api(complete_raises=requests.exceptions.ConnectionError())
-        session._api = api
-        session._state = SessionState.authenticator
+        session, _api = await _authenticator_session(
+            tmp_path,
+            complete_raises=requests.exceptions.ConnectionError(),
+        )
         with pytest.raises(TrUpstreamError) as excinfo:
             await session.submit_2fa("123456")
         message = str(excinfo.value)
@@ -276,27 +358,27 @@ class TestSubmit2FA:
     async def test_submit_2fa_wrong_state_raises_no_login_pending(
         self, tmp_path: Path
     ) -> None:
-        session = _make_session(tmp_path)
-        session._state = SessionState.idle
+        session = _make_session(tmp_path)  # fresh session is idle
         with pytest.raises(NoLoginPendingError):
             await session.submit_2fa("123456")
 
     @pytest.mark.asyncio
     async def test_no_login_pending_is_invalid_state(self, tmp_path: Path) -> None:
-        session = _make_session(tmp_path)
-        session._state = SessionState.idle
+        session = _make_session(tmp_path)  # fresh session is idle
         with pytest.raises(InvalidStateError):
             await session.submit_2fa("123456")
 
     @pytest.mark.asyncio
-    async def test_submit_2fa_without_api_raises_no_login_pending(
+    async def test_submit_2fa_ignored_when_timeout_fires_during_call(
         self, tmp_path: Path
     ) -> None:
-        session = _make_session(tmp_path)
-        session._state = SessionState.authenticator
-        session._api = None
-        with pytest.raises(NoLoginPendingError):
-            await session.submit_2fa("123456")
+        # With a zero timeout the login expires while ``complete_weblogin`` is
+        # still running in the executor; the submission must be ignored and the
+        # session left in ``failed`` rather than flipped to ``confirmed``.
+        session, api = await _authenticator_session(tmp_path, tfa_timeout=0)
+        api.complete_weblogin.side_effect = lambda *_args: time.sleep(0.05)
+        await session.submit_2fa("123456")
+        assert session.state == SessionState.failed
 
 
 class TestTimeout:
@@ -333,11 +415,7 @@ class TestTimeout:
         self, tmp_path: Path
     ) -> None:
         # Use a large timeout so it cannot fire before submit_2fa completes.
-        session = _make_session(tmp_path, tfa_timeout=10)
-        api = _mock_api()
-        session._api = api
-        session._state = SessionState.authenticator
-        session._schedule_timeout()
+        session, _api = await _authenticator_session(tmp_path, tfa_timeout=10)
         await session.submit_2fa("123456")
         await asyncio.sleep(0.05)
         assert session.state == SessionState.confirmed
