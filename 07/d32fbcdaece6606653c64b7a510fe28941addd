@@ -1,0 +1,19 @@
+tests/test_session.py
+  s_3b3206f716176c::t_1de0829e7744e8 455-490
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "07d32fbcdaece6606653c64b7a510fe28941addd",
+  "prompts": {},
+  "sessions": {
+    "s_3b3206f716176c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fb8f2c5f4ffeIxvrZObCzKfCOG",
+        "model": "claude-opus-4.8"
+      },
+      "human_author": "David Belmez <sanmibuh@gmail.com>"
+    }
+  }
+}
