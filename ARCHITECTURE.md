@@ -189,9 +189,8 @@ Each error body includes a `code` field (snake_case) in addition to the standard
 
 Domain errors carry their own HTTP mapping. Each domain error subclasses `DomainError` (in
 `errors.py`) and declares its `status`, `code` and `title` as class attributes; `detail` defaults to
-the exception
-message but can be overridden for a fixed, message-independent explanation. A single generic handler
-in `main.py` (`_domain_error_handler`) resolves *any* `DomainError` via the exception's MRO and calls
-`to_problem_detail()`, so introducing a new domain error never requires editing the web layer. Only
-the genuinely distinct cases keep dedicated handlers: `HTTPException`, `RequestValidationError`, and
-the `Exception` catch-all.
+the exception message but can be overridden for a fixed, message-independent explanation. A single
+generic handler in `main.py` (`_domain_error_handler`) resolves *any* `DomainError` via the
+exception's MRO and calls `to_problem_detail()`, so introducing a new domain error never requires
+editing the web layer. Only the genuinely distinct cases keep dedicated handlers: `HTTPException`,
+`RequestValidationError`, and the `Exception` catch-all.
