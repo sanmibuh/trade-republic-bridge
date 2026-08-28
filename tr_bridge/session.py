@@ -178,8 +178,10 @@ class InstanceSession:
         """
         if self._state != SessionState.authenticator:
             raise NoLoginPendingError(self._state)
-        # Invariant: reaching ``authenticator`` always sets ``_api`` first.
-        assert self._api is not None
+        if (
+            self._api is None
+        ):  # pragma: no cover - defensive: authenticator implies _api
+            raise NoLoginPendingError(self._state)
         api = self._api
         loop = asyncio.get_running_loop()
         try:
@@ -344,8 +346,14 @@ class InstanceSession:
         # run_in_executor thread — complete_weblogin() will run to completion
         # (or raise) regardless. This is an inherent limitation of
         # run_in_executor with blocking callables.
-        # Invariant: the push task is only created after ``_api`` is set.
-        assert self._api is not None
+        if self._api is None:  # pragma: no cover - defensive: push task implies _api
+            logger.error(
+                "Instance %r: _run_push_confirmation called with no API; aborting.",
+                self._config.name,
+            )
+            self._state = SessionState.failed
+            self._cancel_timeout()
+            return
         loop = asyncio.get_running_loop()
         try:
             await loop.run_in_executor(None, self._api.complete_weblogin)
