@@ -53,7 +53,7 @@ async def auth_middleware(
     return await call_next(request)
 
 
-async def http_exception_handler(request: Request, exc: HTTPException) -> Response:
+def http_exception_handler(request: Request, exc: HTTPException) -> Response:
     try:
         phrase = HTTPStatus(exc.status_code).phrase
     except ValueError:
@@ -68,7 +68,7 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> Respon
     )
 
 
-async def request_validation_error_handler(
+def request_validation_error_handler(
     request: Request, exc: RequestValidationError
 ) -> Response:
     return problem_response(
@@ -81,7 +81,7 @@ async def request_validation_error_handler(
     )
 
 
-async def unhandled_exception_handler(request: Request, exc: Exception) -> Response:
+def unhandled_exception_handler(request: Request, exc: Exception) -> Response:
     logger.exception("Unhandled exception on %s %s", request.method, request.url)
     return problem_response(
         ProblemDetail(
@@ -93,7 +93,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> Respo
     )
 
 
-async def domain_error_handler(request: Request, exc: DomainError) -> Response:
+def domain_error_handler(request: Request, exc: DomainError) -> Response:
     """Translate any :class:`DomainError` into its RFC 9457 Problem Details.
 
     A single data-driven handler covers every domain exception: the HTTP
