@@ -1,0 +1,27 @@
+tests/test_pytr_client.py
+  s_e13c7a5324d910::t_96836aa5d98305 1-343
+tr_bridge/adapters/pytr/pytr_client.py
+  s_e13c7a5324d910::t_5c54c09f38f3b3 1-184
+tr_bridge/adapters/web/handlers.py
+  s_e13c7a5324d910::t_52c19fcf365b74 1-113
+tr_bridge/application/session.py
+  s_e13c7a5324d910::t_1ef43e244201c0 1-15,24-33,37-40,42,46,50-51,54-55,76,78,80,85-86,88-89,93,95,97,101,103,107,109,111-114,116,118,121,135,140-143,146,150,157,163-165,167,169,171,177-178,188,190,207-210,212,216,220,224
+tr_bridge/main.py
+  s_e13c7a5324d910::t_8bfe2cd7de8ed3 1-7,10,15-25,33-43,75-76
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "1a6e8414c0ef1dc6569dbcab9a59ac8052181d34",
+  "prompts": {},
+  "sessions": {
+    "s_e13c7a5324d910": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fb5f3c0f7ffev4Xk7iCEDMiPEv",
+        "model": "claude-opus-4.8"
+      },
+      "human_author": "David Belmez <sanmibuh@gmail.com>"
+    }
+  }
+}
