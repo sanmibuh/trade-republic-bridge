@@ -1,7 +1,7 @@
 VENV = .venv
 PYTHON = $(VENV)/bin/python
 
-.PHONY: help install run test lint format clean
+.PHONY: help install run test lint format clean docker-build docker-run
 
 # ── Default ──────────────────────────────────────────────────────────────────
 
@@ -15,6 +15,8 @@ help:
 	@echo "  lint     Check lint and formatting (ruff check + format --check)"
 	@echo "  format   Auto-fix formatting and lint (ruff format + check --fix)"
 	@echo "  clean    Remove __pycache__, .pytest_cache, .coverage, coverage.json"
+	@echo "  docker-build  Build the Docker image (tr-bridge:local)"
+	@echo "  docker-run    Run the image, mounting ./data at /data on port 8000"
 	@echo ""
 
 # ── Dev ───────────────────────────────────────────────────────────────────────
@@ -42,3 +44,12 @@ format:
 clean:
 	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 	rm -rf .pytest_cache .coverage coverage.json htmlcov
+
+# ── Docker ─────────────────────────────────────────────────────────────────────
+
+docker-build:
+	docker build -t tr-bridge:local .
+
+docker-run:
+	docker run --rm -p 8000:8000 --user $(shell id -u):$(shell id -g) \
+		-v $(CURDIR)/data:/data tr-bridge:local

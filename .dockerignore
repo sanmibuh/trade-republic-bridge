@@ -1,0 +1,43 @@
+# Version control / CI
+.git/
+.github/
+.gitignore
+
+# Local runtime data (config with secrets + TR session files)
+data/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Python caches / build artefacts
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Test / coverage
+tests/
+.pytest_cache/
+.ruff_cache/
+.coverage
+coverage.json
+coverage.xml
+htmlcov/
+
+# IDE / OS
+.idea/
+*.iml
+.DS_Store
+
+# Docs / dev-only files not needed in the image
+*.md
+requirements-dev.txt
+Makefile
+scripts/
+docker-compose.yml

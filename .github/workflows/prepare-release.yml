@@ -1,0 +1,88 @@
+name: Prepare release PR
+
+# Manually triggered. Bumps the VERSION file, regenerates the CHANGELOG section
+# from the commits since the last tag, and opens a PR. Merging that PR changes
+# VERSION on main, which triggers release.yml (tag + GitHub release + image).
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Version bump type"
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+jobs:
+  prepare-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          # A PAT is required so the opened PR triggers CI (PRs opened with the
+          # default GITHUB_TOKEN do not start workflow runs).
+          token: ${{ secrets.PAT_RELEASE }}
+
+      - name: Calculate next version
+        id: version
+        run: |
+          CURRENT=$(cat VERSION)
+          MAJOR=$(echo "$CURRENT" | cut -d. -f1)
+          MINOR=$(echo "$CURRENT" | cut -d. -f2)
+          PATCH=$(echo "$CURRENT" | cut -d. -f3)
+
+          case "${{ inputs.bump }}" in
+            major) NEW="$((MAJOR + 1)).0.0" ;;
+            minor) NEW="$MAJOR.$((MINOR + 1)).0" ;;
+            patch) NEW="$MAJOR.$MINOR.$((PATCH + 1))" ;;
+          esac
+
+          echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
+          echo "new=$NEW" >> "$GITHUB_OUTPUT"
+
+      - name: Update VERSION
+        run: echo "${{ steps.version.outputs.new }}" > VERSION
+
+      - name: Update CHANGELOG
+        run: |
+          bash scripts/generate-changelog.sh \
+            "${{ steps.version.outputs.new }}" \
+            "${{ steps.version.outputs.current }}" \
+            "${{ github.repository }}" \
+            CHANGELOG.md
+
+      - name: Open PR
+        env:
+          GH_TOKEN: ${{ secrets.PAT_RELEASE }}
+        run: |
+          NEW="${{ steps.version.outputs.new }}"
+          CURRENT="${{ steps.version.outputs.current }}"
+          BUMP="${{ inputs.bump }}"
+          BRANCH="release-${NEW}"
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add VERSION CHANGELOG.md
+          git commit -m "chore(release): update version to ${NEW}"
+          git push origin "$BRANCH" --force-with-lease
+
+          gh pr create \
+            --title "chore(release): update version to ${NEW}" \
+            --body "## Release ${NEW} (${BUMP})
+
+          Bumps version \`${CURRENT}\` → \`${NEW}\`.
+
+          **Before merging, review the new \`CHANGELOG.md\` section** at the top of the file and refine the release notes.
+
+          **Merging this PR will trigger \`release.yml\`:**
+          - Create git tag \`v${NEW}\` + GitHub Release
+          - Build and push \`ghcr.io/${{ github.repository_owner }}/tr-bridge:v${NEW}\` and \`:latest\`" \
+            --base main \
+            --head "$BRANCH"
