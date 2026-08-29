@@ -71,7 +71,7 @@ jobs:
           git checkout -b "$BRANCH"
           git add VERSION CHANGELOG.md
           git commit -m "chore(release): update version to ${NEW}"
-          git push origin "$BRANCH" --force-with-lease 2>/dev/null || git push origin "$BRANCH" --force
+          git push origin "$BRANCH" --force-with-lease
 
           gh pr create \
             --title "chore(release): update version to ${NEW}" \
