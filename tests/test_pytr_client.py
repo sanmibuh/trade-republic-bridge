@@ -248,13 +248,18 @@ class _FakeTimeline:
         return None
 
 
-async def _confirmed_client(tmp_path: Path) -> PytrClient:
+async def _confirmed_client_with_api(tmp_path: Path) -> tuple[PytrClient, MagicMock]:
     client = _make_client(tmp_path)
     api = _mock_api(resume_returns=True)
     with patch(
         "tr_bridge.adapters.pytr.pytr_client.TradeRepublicApi", return_value=api
     ):
         await client.resume_session()
+    return client, api
+
+
+async def _confirmed_client(tmp_path: Path) -> PytrClient:
+    client, _ = await _confirmed_client_with_api(tmp_path)
     return client
 
 
@@ -268,6 +273,57 @@ class TestFetchTimeline:
         with patch("tr_bridge.adapters.pytr.pytr_client.Timeline", _FakeTimeline):
             events = await client.fetch_timeline(self._SINCE, self._UNTIL)
         assert events == [{"id": "e1", "timestamp": "2026-08-03T10:12:04.000+0000"}]
+
+    @pytest.mark.asyncio
+    async def test_refreshes_web_session_before_opening_websocket(
+        self, tmp_path: Path
+    ) -> None:
+        # pytr's websocket authenticates via session cookies but never refreshes
+        # them; a fresh REST call must mint the cookie before the ws is opened,
+        # otherwise Trade Republic answers "No auth token".
+        client = _make_client(tmp_path)
+        api = _mock_api(resume_returns=True)
+        with patch(
+            "tr_bridge.adapters.pytr.pytr_client.TradeRepublicApi", return_value=api
+        ):
+            await client.resume_session()
+
+        order: list[str] = []
+
+        class _RecordingTimeline(_FakeTimeline):
+            async def tl_loop(self) -> None:
+                order.append("tl_loop")
+
+        api.settings.side_effect = lambda: order.append("settings")
+
+        with patch("tr_bridge.adapters.pytr.pytr_client.Timeline", _RecordingTimeline):
+            await client.fetch_timeline(self._SINCE, self._UNTIL)
+
+        assert order == ["settings", "tl_loop"]
+
+    @pytest.mark.asyncio
+    async def test_session_refresh_401_maps_to_session_expired(
+        self, tmp_path: Path
+    ) -> None:
+        client, api = await _confirmed_client_with_api(tmp_path)
+        api.settings.side_effect = _http_error(401)
+        with (
+            patch("tr_bridge.adapters.pytr.pytr_client.Timeline", _FakeTimeline),
+            pytest.raises(SessionExpiredError),
+        ):
+            await client.fetch_timeline(self._SINCE, self._UNTIL)
+
+    @pytest.mark.asyncio
+    async def test_session_refresh_other_error_maps_to_upstream(
+        self, tmp_path: Path
+    ) -> None:
+        client, api = await _confirmed_client_with_api(tmp_path)
+        api.settings.side_effect = _http_error(500)
+        with (
+            patch("tr_bridge.adapters.pytr.pytr_client.Timeline", _FakeTimeline),
+            pytest.raises(TrUpstreamError),
+        ):
+            await client.fetch_timeline(self._SINCE, self._UNTIL)
 
     @pytest.mark.asyncio
     async def test_passes_time_window_to_pytr(self, tmp_path: Path) -> None:

@@ -82,6 +82,7 @@ class PytrClient:
 
     async def fetch_timeline(self, since: datetime, until: datetime) -> list[dict]:
         api = self._ensure_api()
+        await self._refresh_web_session(api)
         timeline = Timeline(
             api,
             Path(self._session_dir),
@@ -121,6 +122,36 @@ class PytrClient:
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    async def _refresh_web_session(self, api: TradeRepublicApi) -> None:
+        """Mint a fresh web-session cookie before opening the websocket.
+
+        pytr's websocket authenticates using the session cookies on the shared
+        ``requests`` session, but ``_get_ws`` never refreshes them. When login
+        and timeline retrieval happen in the same process the socket would open
+        with only the login cookies and Trade Republic rejects the subscription
+        with ``AUTHENTICATION_ERROR`` ("No auth token"). Issuing a REST call
+        (``settings``) triggers pytr's session refresh against
+        ``/api/v1/auth/web/session`` and sets the cookie the socket needs.
+
+        A 401 here means the saved session is no longer valid and maps to
+        :class:`SessionExpiredError`; any other transport failure maps to
+        :class:`TrUpstreamError` (or :class:`RateLimitedError` for HTTP 429).
+        """
+        try:
+            await self._run(api.settings)
+        except requests.exceptions.RequestException as exc:
+            status_code = getattr(getattr(exc, "response", None), "status_code", None)
+            if status_code == 401:
+                logger.info(
+                    "Instance %r: session refresh returned 401; session expired.",
+                    self._config.name,
+                )
+                raise SessionExpiredError(
+                    f"Trade Republic session for instance {self._config.name!r} "
+                    f"has expired; login required."
+                ) from exc
+            self._raise_upstream(exc)
 
     async def _run(self, func: Callable[..., _T], *args: object) -> _T:
         """Run a blocking pytr callable on the default executor thread."""
