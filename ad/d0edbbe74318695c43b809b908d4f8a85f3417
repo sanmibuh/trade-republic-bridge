@@ -1,0 +1,20 @@
+Makefile
+  h_35ce34583c4794 13
+README.md
+  h_35ce34583c4794 49-50
+tests/test_config.py
+  h_35ce34583c4794 106-144
+tr_bridge/config.py
+  h_35ce34583c4794 67,70-73,81-82,86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "add0edbbe74318695c43b809b908d4f8a85f3417",
+  "prompts": {},
+  "humans": {
+    "h_35ce34583c4794": {
+      "author": "David Belmez <sanmibuh@gmail.com>"
+    }
+  }
+}
