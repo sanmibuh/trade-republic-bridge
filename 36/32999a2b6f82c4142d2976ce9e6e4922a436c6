@@ -1,0 +1,16 @@
+CHANGELOG.md
+  h_35ce34583c4794 9-28,30
+scripts/generate-changelog.sh
+  h_35ce34583c4794 28-29,32-35,39-50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "3632999a2b6f82c4142d2976ce9e6e4922a436c6",
+  "prompts": {},
+  "humans": {
+    "h_35ce34583c4794": {
+      "author": "David Belmez <sanmibuh@gmail.com>"
+    }
+  }
+}
