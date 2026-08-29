@@ -5,9 +5,10 @@ delegate to the use case (via the per-instance :class:`InstanceRegistry`).
 Business orchestration and pytr access live behind the application and secondary
 adapter layers respectively.
 
-Every route defined here is protected: the auth middleware registered by
+Most routes defined here are protected: the auth middleware registered by
 ``register_handlers`` enforces ``X-API-Key`` for any path not in the public set.
-``/health`` is the sole public exception.
+The public exceptions are the base URL (``GET /``, which redirects to ``/docs``),
+the ``/health`` liveness probe, and the documentation endpoints.
 """
 
 from __future__ import annotations
@@ -17,6 +18,7 @@ import sys
 from collections.abc import Callable
 
 from fastapi import FastAPI, Request
+from fastapi.responses import RedirectResponse
 
 from tr_bridge.adapters.web.schemas import (
     DependenciesModel,
@@ -38,6 +40,11 @@ def register_routes(app: FastAPI, *, read_version: Callable[[], str]) -> None:
     ``read_version`` is injected by the composition root so the health route can
     report the running service version without this module owning that concern.
     """
+
+    @app.get("/", include_in_schema=False)
+    async def root() -> RedirectResponse:
+        """Redirect the base URL to the Swagger UI for a friendly landing page."""
+        return RedirectResponse(url="/docs")
 
     @app.get("/health", tags=["ops"])
     async def health() -> HealthResponse:

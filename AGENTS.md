@@ -104,3 +104,13 @@ the urge to do so, the code design is wrong; fix the design instead.
 - Run `ruff format .` — no unformatted code may be left.
 - Run `ruff check .` — no warnings.
 - Ensure all new code has tests and coverage stays at or above 97%.
+
+---
+
+## Local smoke tests
+
+- Never touch the developer's local `data/` directory. It may hold a real `config.yml` and live
+  `tr_session_*` folders; deleting or overwriting it is destructive.
+- When a manual/live smoke test needs a config file, create it in a throwaway temp directory outside
+  the repo (e.g. under `/var/folders/.../opencode/`) and point `TR_CONFIG_PATH` at it. Clean up that
+  temp directory afterwards — never run `rm -rf data` or otherwise clobber the repo's `data/`.

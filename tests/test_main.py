@@ -276,6 +276,23 @@ class TestAuthMiddleware:
 class TestOpenApiDocs:
     """The OpenAPI schema and doc UIs are public (no API key required)."""
 
+    def test_root_redirects_to_docs_without_api_key(self) -> None:
+        with patch("tr_bridge.main.Config") as mock_cfg_cls:
+            mock_cfg_cls.load.return_value = MagicMock()
+            with TestClient(app, follow_redirects=False) as client:
+                resp = client.get("/")
+
+        assert resp.status_code in (307, 308)
+        assert resp.headers["location"] == "/docs"
+
+    def test_root_is_not_in_schema(self) -> None:
+        with patch("tr_bridge.main.Config") as mock_cfg_cls:
+            mock_cfg_cls.load.return_value = MagicMock()
+            with TestClient(app) as client:
+                schema = client.get("/openapi.json").json()
+
+        assert "/" not in schema["paths"]
+
     def test_openapi_json_is_public_and_lists_all_routes(self) -> None:
         with patch("tr_bridge.main.Config") as mock_cfg_cls:
             mock_cfg_cls.load.return_value = MagicMock()
