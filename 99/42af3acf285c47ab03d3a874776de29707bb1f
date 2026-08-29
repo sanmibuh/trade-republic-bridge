@@ -1,0 +1,19 @@
+README.md
+  s_6c3e29b1e203fd::t_93964c5da26287 38-52,306-343
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "9942af3acf285c47ab03d3a874776de29707bb1f",
+  "prompts": {},
+  "sessions": {
+    "s_6c3e29b1e203fd": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "d2e1b1f2-23de-40df-beea-4577c69f5320",
+        "model": "unknown"
+      },
+      "human_author": "David Belmez <sanmibuh@gmail.com>"
+    }
+  }
+}
