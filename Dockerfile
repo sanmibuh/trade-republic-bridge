@@ -5,7 +5,7 @@
 # image carries only what is needed to run (no build toolchain, no pip cache).
 # Pinned to Python 3.12 to match the CI/lint target (ruff target-version py312),
 # so the image runs on the same interpreter version tests run against.
-FROM python:3.12-slim-bookworm AS builder
+FROM python:3.14-slim-bookworm AS builder
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
@@ -22,7 +22,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # ── Runtime ───────────────────────────────────────────────────────────────────
 # Slim image running as a non-root user. Only the virtualenv and the application
 # source are copied in. Python 3.12 matches the CI/lint target.
-FROM python:3.12-slim-bookworm AS runtime
+FROM python:3.14-slim-bookworm AS runtime
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
