@@ -335,9 +335,12 @@ Releases are driven entirely by the `VERSION` file at the repo root:
    the `vX.Y.Z` git tag and GitHub Release, then builds and pushes the multi-arch
    image tagged `vX.Y.Z` and `latest` to GHCR.
 
-The **Prepare release PR** workflow requires a `PAT_RELEASE` repository secret (a
-personal access token with `repo` scope) so that the opened PR triggers CI — PRs
-created with the default `GITHUB_TOKEN` do not start workflow runs.
+The **Prepare release PR** workflow requires a `PAT_RELEASE` repository secret so
+that the opened PR triggers CI — PRs created with the default `GITHUB_TOKEN` do
+not start workflow runs. Prefer a **fine-grained** personal access token scoped
+to this repository only, with the minimal permissions **Contents: Read and
+write** (push the release branch) and **Pull requests: Read and write** (open the
+PR). Avoid a classic token with the broad `repo` scope.
 
 ---
 

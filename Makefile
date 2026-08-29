@@ -51,4 +51,5 @@ docker-build:
 	docker build -t tr-bridge:local .
 
 docker-run:
-	docker run --rm -p 8000:8000 -v $(CURDIR)/data:/data tr-bridge:local
+	docker run --rm -p 8000:8000 --user $(shell id -u):$(shell id -g) \
+		-v $(CURDIR)/data:/data tr-bridge:local

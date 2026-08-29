@@ -59,6 +59,13 @@ trap 'rm -f "$SECTION_FILE"' EXIT
     printf '%s\n\n' "$FULL_CHANGELOG"
 } > "$SECTION_FILE"
 
+# Fail fast if the anchor line is missing: otherwise awk would silently leave the
+# changelog unchanged and still exit 0, publishing a release with no new section.
+if ! grep -q '^The format is based on' "$CHANGELOG_FILE"; then
+    echo "ERROR: anchor line 'The format is based on' not found in ${CHANGELOG_FILE}" >&2
+    exit 1
+fi
+
 awk -v sectionfile="$SECTION_FILE" '
     /^The format is based on/ && !inserted {
         print
