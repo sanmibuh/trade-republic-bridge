@@ -312,6 +312,15 @@ class TestOpenApiDocs:
         assert resp.status_code == 200
         assert "text/html" in resp.headers["content-type"]
 
+    def test_swagger_oauth2_redirect_is_public(self) -> None:
+        """Swagger UI's oauth2-redirect subpath must not require an API key."""
+        with patch("tr_bridge.main.Config") as mock_cfg_cls:
+            mock_cfg_cls.load.return_value = MagicMock()
+            with TestClient(app) as client:
+                resp = client.get("/docs/oauth2-redirect")
+
+        assert resp.status_code == 200
+
 
 class TestStart:
     def test_start_calls_uvicorn_run(self) -> None:
