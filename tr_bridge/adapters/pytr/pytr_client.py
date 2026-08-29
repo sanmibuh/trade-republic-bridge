@@ -135,8 +135,9 @@ class PytrClient:
         ``/api/v1/auth/web/session`` and sets the cookie the socket needs.
 
         A 401 here means the saved session is no longer valid and maps to
-        :class:`SessionExpiredError`; any other transport failure maps to
-        :class:`TrUpstreamError` (or :class:`RateLimitedError` for HTTP 429).
+        :class:`SessionExpiredError`; HTTP 429 maps to :class:`RateLimitedError`
+        with a refresh-specific message; any other transport failure maps to
+        :class:`TrUpstreamError`.
         """
         try:
             await self._run(api.settings)
@@ -150,6 +151,14 @@ class PytrClient:
                 raise SessionExpiredError(
                     f"Trade Republic session for instance {self._config.name!r} "
                     f"has expired; login required."
+                ) from exc
+            if status_code == 429:
+                logger.warning(
+                    "Instance %r: session refresh rate-limited.", self._config.name
+                )
+                raise RateLimitedError(
+                    f"Trade Republic rate-limited the session refresh for "
+                    f"instance {self._config.name!r}."
                 ) from exc
             self._raise_upstream(exc)
 

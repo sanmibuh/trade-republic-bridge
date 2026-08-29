@@ -314,6 +314,18 @@ class TestFetchTimeline:
             await client.fetch_timeline(self._SINCE, self._UNTIL)
 
     @pytest.mark.asyncio
+    async def test_session_refresh_429_maps_to_rate_limited(
+        self, tmp_path: Path
+    ) -> None:
+        client, api = await _confirmed_client_with_api(tmp_path)
+        api.settings.side_effect = _http_error(429)
+        with (
+            patch("tr_bridge.adapters.pytr.pytr_client.Timeline", _FakeTimeline),
+            pytest.raises(RateLimitedError),
+        ):
+            await client.fetch_timeline(self._SINCE, self._UNTIL)
+
+    @pytest.mark.asyncio
     async def test_session_refresh_other_error_maps_to_upstream(
         self, tmp_path: Path
     ) -> None:
