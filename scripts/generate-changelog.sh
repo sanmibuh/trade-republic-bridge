@@ -7,7 +7,7 @@
 # Arguments:
 #   NEW_VERSION      - The version being released (e.g. 0.2.0)
 #   CURRENT_VERSION  - The previous version (e.g. 0.1.0)
-#   REPO             - GitHub repository in owner/name format (e.g. sanmibuh/tr-bridge)
+#   REPO             - GitHub repository in owner/name format (e.g. sanmibuh/trade-republic-bridge)
 #   CHANGELOG_FILE   - Path to the CHANGELOG.md file to update
 #
 # The script expects a git tag "v${CURRENT_VERSION}" to exist. If it is missing
@@ -51,7 +51,7 @@ FULL_CHANGELOG="**Full Changelog**: ${COMPARE}"
 # Write the new section to a temp file, then splice it in right after the
 # "The format is based on" line. Reading the section from a file (rather than
 # passing it as an awk variable) keeps this portable across BSD and GNU awk.
-SECTION_FILE=$(mktemp)
+SECTION_FILE=$(mktemp "${TMPDIR:-/tmp}/changelog.XXXXXX")
 trap 'rm -f "$SECTION_FILE"' EXIT
 {
     printf '## [%s] - %s\n\n### What'\''s Changed\n' "$NEW" "$TODAY"

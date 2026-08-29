@@ -337,8 +337,9 @@ published to `ghcr.io/sanmibuh/tr-bridge`.
 
 Three GitHub Actions workflows automate quality and releases:
 
-- **`ci.yml`** — runs on every push and PR: `ruff check`, `ruff format --check`,
-  and `pytest` with 100% coverage enforced. On merge to `main` it also persists
+- **`ci.yml`** — runs on pushes to `main` and PRs targeting `main`: `ruff check`,
+  `ruff format --check`, and `pytest` with 100% coverage enforced. On merge to
+  `main` it also persists
   coverage stats to a `ci-data` branch and, on PRs, posts a coverage-diff comment.
 - **`prepare-release.yml`** — a manually dispatched workflow that bumps the
   `VERSION` file (`patch`/`minor`/`major`), regenerates the `CHANGELOG.md`

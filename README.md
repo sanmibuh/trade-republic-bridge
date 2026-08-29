@@ -317,7 +317,8 @@ docker build -t tr-bridge .
 
 ### CI
 
-Every push and pull request runs [`.github/workflows/ci.yml`](.github/workflows/ci.yml):
+Pushes to `main` and pull requests targeting `main` run
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml):
 `ruff check`, `ruff format --check`, and `pytest` with 100% coverage enforced.
 
 ### Cutting a release
