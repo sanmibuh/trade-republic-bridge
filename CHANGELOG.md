@@ -3,6 +3,13 @@
 All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.0.0] - 2026-08-29
+
+### What's Changed
+<!-- add release notes here -->
+**Full Changelog**: https://github.com/sanmibuh/trade-republic-bridge/commits/v1.0.0
+
+
 ## [0.1.0] - 2026-08-29
 
 ### What's Changed
