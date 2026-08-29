@@ -1,0 +1,16 @@
+tests/test_pytr_client.py
+  h_35ce34583c4794 161-192
+tr_bridge/adapters/pytr/pytr_client.py
+  h_35ce34583c4794 77-88
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "4f01b5dea88046483e2d8a23dc65a54d708f30e6",
+  "prompts": {},
+  "humans": {
+    "h_35ce34583c4794": {
+      "author": "David Belmez <sanmibuh@gmail.com>"
+    }
+  }
+}
