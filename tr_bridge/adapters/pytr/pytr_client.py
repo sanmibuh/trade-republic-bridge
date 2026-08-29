@@ -74,6 +74,18 @@ class PytrClient:
                 await self._run(api.complete_weblogin)
             else:
                 await self._run(api.complete_weblogin, code)
+                # pytr's authenticator path verifies the code but, unlike the
+                # push path, does not poll the login process to completion. Until
+                # the process is confirmed Trade Republic never issues the real
+                # session cookies, so every later web/websocket call gets 401.
+                # Poll for confirmation and persist the resulting cookies,
+                # mirroring pytr's own push flow.
+                #
+                # NOTE: _await_weblogin_confirmation is a private pytr method
+                # with no public equivalent in pytr 0.4.10; a rename upstream
+                # would break this call.
+                await self._run(api._await_weblogin_confirmation)
+                await self._run(api.save_websession)
         except ValueError as exc:
             logger.warning("Instance %r: 2FA code rejected: %s", self._config.name, exc)
             raise CodeRejectedError(str(exc)) from exc
