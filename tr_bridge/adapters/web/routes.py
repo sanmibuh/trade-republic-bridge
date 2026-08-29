@@ -5,9 +5,10 @@ delegate to the use case (via the per-instance :class:`InstanceRegistry`).
 Business orchestration and pytr access live behind the application and secondary
 adapter layers respectively.
 
-Every route defined here is protected: the auth middleware registered by
+Most routes defined here are protected: the auth middleware registered by
 ``register_handlers`` enforces ``X-API-Key`` for any path not in the public set.
-``/health`` is the sole public exception.
+The public exceptions are the base URL (``GET /``, which redirects to ``/docs``),
+the ``/health`` liveness probe, and the documentation endpoints.
 """
 
 from __future__ import annotations
