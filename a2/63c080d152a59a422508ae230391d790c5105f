@@ -1,0 +1,14 @@
+tr_bridge/adapters/web/routes.py
+  h_35ce34583c4794 8,10-11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "a263c080d152a59a422508ae230391d790c5105f",
+  "prompts": {},
+  "humans": {
+    "h_35ce34583c4794": {
+      "author": "David Belmez <sanmibuh@gmail.com>"
+    }
+  }
+}
