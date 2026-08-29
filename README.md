@@ -46,7 +46,8 @@ make run                          # starts uvicorn on http://127.0.0.1:8000 with
 
 By default the app reads `/data/config.yml`. For local development set the
 `TR_CONFIG_PATH` environment variable to point elsewhere — the `make run` target
-already sets it to `./data/config.yml`. To override it:
+already defaults it to the repo's `data/config.yml` (resolved to an absolute
+path). To override it:
 
 ```bash
 TR_CONFIG_PATH=/path/to/config.yml make run

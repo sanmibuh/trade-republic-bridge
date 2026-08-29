@@ -103,6 +103,45 @@ class TestConfigPath:
 
         assert _resolve_config_path() == "/tmp/custom/config.yml"
 
+    def test_from_file_resolves_env_path_at_call_time(
+        self, tmp_path, monkeypatch
+    ) -> None:
+        path = _write_config(
+            tmp_path,
+            """
+            api_key: runtime
+            instances:
+              - name: user1
+                phone: "+491"
+                pin: "0000"
+            """,
+        )
+        monkeypatch.setenv("TR_CONFIG_PATH", path)
+
+        cfg = Config.from_file()
+
+        assert cfg.api_key == "runtime"
+
+    def test_from_file_expands_user_home_in_env_path(
+        self, tmp_path, monkeypatch
+    ) -> None:
+        _write_config(
+            tmp_path,
+            """
+            api_key: home
+            instances:
+              - name: user1
+                phone: "+491"
+                pin: "0000"
+            """,
+        )
+        monkeypatch.setenv("HOME", str(tmp_path))
+        monkeypatch.setenv("TR_CONFIG_PATH", "~/config.yml")
+
+        cfg = Config.from_file()
+
+        assert cfg.api_key == "home"
+
     def test_load_delegates_to_from_file_with_default_path(self, tmp_path) -> None:
         from unittest.mock import patch
 

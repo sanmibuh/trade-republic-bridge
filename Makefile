@@ -10,7 +10,7 @@ help:
 	@echo "Usage: make <target>"
 	@echo ""
 	@echo "  install  Create .venv and install all dependencies"
-	@echo "  run      Run the API locally with autoreload (TR_CONFIG_PATH=./data/config.yml)"
+	@echo "  run      Run the API locally with autoreload (TR_CONFIG_PATH defaults to <repo>/data/config.yml)"
 	@echo "  test     Run the test suite with coverage"
 	@echo "  lint     Check lint and formatting (ruff check + format --check)"
 	@echo "  format   Auto-fix formatting and lint (ruff format + check --fix)"

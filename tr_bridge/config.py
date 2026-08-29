@@ -28,7 +28,6 @@ def _resolve_config_path() -> str:
     return os.getenv(_CONFIG_PATH_ENV, _DEFAULT_CONFIG_PATH)
 
 
-CONFIG_PATH = _resolve_config_path()
 _DEFAULT_DATA_ROOT = "/data"
 _DEFAULT_TFA_TIMEOUT = 120
 
@@ -65,8 +64,12 @@ class Config:
         return cls.from_file()
 
     @classmethod
-    def from_file(cls, path: str = CONFIG_PATH) -> Config:
+    def from_file(cls, path: str | None = None) -> Config:
         """Load and validate config from *path*.
+
+        When *path* is omitted it is resolved at call time from the
+        ``TR_CONFIG_PATH`` environment variable, falling back to the container
+        default ``/data/config.yml``. A leading ``~`` is expanded.
 
         The data root (where ``tr_session_{name}/`` directories live) is the
         directory that contains the config file, matching the documented
@@ -75,11 +78,12 @@ class Config:
         Raises:
             ConfigError: if the file is missing or the content is invalid.
         """
-        raw = cls._read_yaml(path)
+        resolved = Path(path or _resolve_config_path()).expanduser().resolve()
+        raw = cls._read_yaml(str(resolved))
         api_key = cls._require_str(raw, "api_key")
         instances = cls._parse_instances(raw)
         tfa_timeout = cls._parse_tfa_timeout(raw)
-        data_root = str(Path(path).resolve().parent)
+        data_root = str(resolved.parent)
         return cls(
             api_key=api_key,
             instances=instances,
