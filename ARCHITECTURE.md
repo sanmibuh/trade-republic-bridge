@@ -350,7 +350,7 @@ Three GitHub Actions workflows automate quality and releases:
   multi-arch (`linux/amd64,linux/arm64`) image tagged `vX.Y.Z` and `latest`.
 
 The single source of truth for the version is the `VERSION` file, read at runtime
-by `main.py::_read_version()` to populate the OpenAPI/`/health` version. The
+by `tr_bridge/main.py::_read_version()` to populate the OpenAPI/`/health` version. The
 changelog follows [Keep a Changelog](https://keepachangelog.com/); the generator
 script derives entries from commit subjects since the previous tag and is written
 to be portable across BSD and GNU `awk`.
