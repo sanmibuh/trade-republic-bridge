@@ -1,0 +1,26 @@
+.github/workflows/ci.yml
+  h_35ce34583c4794 28,55
+.github/workflows/release.yml
+  h_35ce34583c4794 65-66
+Dockerfile
+  h_35ce34583c4794 6-7,24,31-35
+Makefile
+  h_35ce34583c4794 54-55
+README.md
+  h_35ce34583c4794 338-343
+pyproject.toml
+  h_35ce34583c4794 2
+scripts/generate-changelog.sh
+  h_35ce34583c4794 62-68
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "da32fb6fc939a6fdee05dadd8a31e4964563f15a",
+  "prompts": {},
+  "humans": {
+    "h_35ce34583c4794": {
+      "author": "David Belmez <sanmibuh@gmail.com>"
+    }
+  }
+}
