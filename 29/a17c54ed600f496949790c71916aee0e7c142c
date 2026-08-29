@@ -1,0 +1,19 @@
+tests/test_pytr_client.py
+  s_bbbee5d750a84e::t_d01a26fdff4571 251,258-262,277-327
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "29a17c54ed600f496949790c71916aee0e7c142c",
+  "prompts": {},
+  "sessions": {
+    "s_bbbee5d750a84e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fb3a74c0affeUZX4V5qA1L9u95",
+        "model": "claude-opus-4.8"
+      },
+      "human_author": "David Belmez <sanmibuh@gmail.com>"
+    }
+  }
+}
