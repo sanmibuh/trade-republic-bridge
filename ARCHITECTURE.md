@@ -107,8 +107,9 @@ referenced from a single module, so a change in its API has a single blast radiu
 
 ## Configuration
 
-The service reads a single YAML file at the fixed path `/data/config.yml`. The file contains the
-API key and the list of instances:
+The service reads a single YAML file. In production the path is the fixed container default
+`/data/config.yml`; for local development it can be overridden via the `TR_CONFIG_PATH`
+environment variable. The file contains the API key and the list of instances:
 
 ```yaml
 api_key: "changeme"
@@ -120,7 +121,9 @@ instances:
 ```
 
 All configuration is loaded once at startup through `tr_bridge/config.py`. No other module may call
-`os.getenv` or read the file directly. There are no environment variables.
+`os.getenv` or read the file directly. The only environment variable is `TR_CONFIG_PATH`, which
+solely relocates the config file for local runs (a relative path would be fragile because it depends
+on the process working directory); it is read exclusively in `config.py`.
 
 A YAML file was chosen over environment variables because each instance carries structured data
 (`name`, `phone`, `pin`); encoding a list of structs in env vars is error-prone. The file is mounted

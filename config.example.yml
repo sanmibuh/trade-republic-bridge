@@ -1,0 +1,11 @@
+# Example configuration for tr-bridge.
+# Copy to data/config.yml (local) or /data/config.yml (Docker) and edit.
+
+api_key: "changeme"           # secret key required in the X-API-Key header
+
+tfa_timeout: 120              # seconds to wait for 2FA / push confirmation (default: 120)
+
+instances:
+  - name: user1               # session subdirectory name; must match ^[a-zA-Z0-9_-]+$
+    phone: "+49123456789"     # Trade Republic phone number
+    pin: "1234"               # Trade Republic PIN

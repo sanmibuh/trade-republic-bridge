@@ -38,12 +38,23 @@ automatically under `tr_session_{name}/` subdirectories.
 ### Running locally
 
 ```bash
-pip install -r requirements-dev.txt
-uvicorn tr_bridge.main:app --port 8000
+make install                      # create .venv and install deps
+mkdir -p data                     # local config/session directory
+cp config.example.yml data/config.yml   # then edit it (see Configuration)
+make run                          # starts uvicorn on http://127.0.0.1:8000 with autoreload
 ```
 
-> **Note:** the app reads `/data/config.yml` at startup. Without it, the server will exit
-> immediately with a `ConfigError`. Create the file first (see [Configuration](#configuration)).
+By default the app reads `/data/config.yml`. For local development set the
+`TR_CONFIG_PATH` environment variable to point elsewhere — the `make run` target
+already defaults it to the repo's `data/config.yml` (resolved to an absolute
+path). To override it:
+
+```bash
+TR_CONFIG_PATH=/path/to/config.yml make run
+```
+
+> **Note:** without a readable config file the server exits immediately with a
+> `ConfigError`. Create it first (see [Configuration](#configuration)).
 
 Interactive API docs are not exposed. The service is an internal API protected by `X-API-Key`.
 
@@ -68,8 +79,11 @@ instances:
     pin: "5678"
 ```
 
-There are no environment variables to configure. The data location inside the container is always
+There are no required environment variables. The data location inside the container is always
 `/data`; mount the volume wherever you need it on the host.
+
+For local development, `TR_CONFIG_PATH` overrides the config file location (default
+`/data/config.yml`). Docker deployments should leave it unset.
 
 Session files (`credentials.json`, `cookies.txt`) are stored under `/data/tr_session_{name}/`,
 one directory per instance.

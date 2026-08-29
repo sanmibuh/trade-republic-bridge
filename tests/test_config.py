@@ -89,10 +89,58 @@ class TestConfigLoading:
 
 
 class TestConfigPath:
-    def test_default_path_is_data_config_yml(self) -> None:
-        from tr_bridge.config import CONFIG_PATH
+    def test_default_path_is_data_config_yml(self, monkeypatch) -> None:
+        from tr_bridge.config import _resolve_config_path
 
-        assert CONFIG_PATH == "/data/config.yml"
+        monkeypatch.delenv("TR_CONFIG_PATH", raising=False)
+
+        assert _resolve_config_path() == "/data/config.yml"
+
+    def test_env_var_overrides_default_path(self, monkeypatch) -> None:
+        from tr_bridge.config import _resolve_config_path
+
+        monkeypatch.setenv("TR_CONFIG_PATH", "/tmp/custom/config.yml")
+
+        assert _resolve_config_path() == "/tmp/custom/config.yml"
+
+    def test_from_file_resolves_env_path_at_call_time(
+        self, tmp_path, monkeypatch
+    ) -> None:
+        path = _write_config(
+            tmp_path,
+            """
+            api_key: runtime
+            instances:
+              - name: user1
+                phone: "+491"
+                pin: "0000"
+            """,
+        )
+        monkeypatch.setenv("TR_CONFIG_PATH", path)
+
+        cfg = Config.from_file()
+
+        assert cfg.api_key == "runtime"
+
+    def test_from_file_expands_user_home_in_env_path(
+        self, tmp_path, monkeypatch
+    ) -> None:
+        _write_config(
+            tmp_path,
+            """
+            api_key: home
+            instances:
+              - name: user1
+                phone: "+491"
+                pin: "0000"
+            """,
+        )
+        monkeypatch.setenv("HOME", str(tmp_path))
+        monkeypatch.setenv("TR_CONFIG_PATH", "~/config.yml")
+
+        cfg = Config.from_file()
+
+        assert cfg.api_key == "home"
 
     def test_load_delegates_to_from_file_with_default_path(self, tmp_path) -> None:
         from unittest.mock import patch
@@ -351,7 +399,23 @@ class TestSessionDir:
 
         cfg = Config.from_file(path)
 
-        assert cfg.session_dir("user1") == "/data/tr_session_user1"
+        assert cfg.session_dir("user1") == f"{tmp_path}/tr_session_user1"
+
+    def test_data_root_defaults_to_config_parent(self, tmp_path) -> None:
+        path = _write_config(
+            tmp_path,
+            """
+            api_key: k
+            instances:
+              - name: user1
+                phone: "+491"
+                pin: "0000"
+            """,
+        )
+
+        cfg = Config.from_file(path)
+
+        assert cfg.session_dir("user1").startswith(str(tmp_path))
 
     def test_unknown_instance_raises(self, tmp_path) -> None:
         path = _write_config(

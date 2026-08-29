@@ -29,3 +29,6 @@ htmlcov/
 # Misc
 *.log
 .DS_Store
+
+# Local runtime data (config with secrets + TR session files)
+/data/

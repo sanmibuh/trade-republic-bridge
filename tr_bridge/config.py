@@ -6,6 +6,7 @@ all configuration must come through this module.
 
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -14,8 +15,20 @@ import yaml
 
 _INSTANCE_NAME_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
 
-CONFIG_PATH = "/data/config.yml"
-_DATA_ROOT = "/data"
+_DEFAULT_CONFIG_PATH = "/data/config.yml"
+_CONFIG_PATH_ENV = "TR_CONFIG_PATH"
+
+
+def _resolve_config_path() -> str:
+    """Resolve the config file path, honouring the ``TR_CONFIG_PATH`` override.
+
+    Defaults to the container path ``/data/config.yml``; local development can
+    point it elsewhere via the ``TR_CONFIG_PATH`` environment variable.
+    """
+    return os.getenv(_CONFIG_PATH_ENV, _DEFAULT_CONFIG_PATH)
+
+
+_DEFAULT_DATA_ROOT = "/data"
 _DEFAULT_TFA_TIMEOUT = 120
 
 
@@ -39,6 +52,7 @@ class Config:
     api_key: str
     instances: list[InstanceConfig]
     tfa_timeout: int = _DEFAULT_TFA_TIMEOUT
+    data_root: str = _DEFAULT_DATA_ROOT
 
     # ------------------------------------------------------------------
     # Factories
@@ -46,21 +60,36 @@ class Config:
 
     @classmethod
     def load(cls) -> Config:
-        """Load config from the fixed path ``/data/config.yml``."""
+        """Load config from the resolved path (``TR_CONFIG_PATH`` or default)."""
         return cls.from_file()
 
     @classmethod
-    def from_file(cls, path: str = CONFIG_PATH) -> Config:
+    def from_file(cls, path: str | None = None) -> Config:
         """Load and validate config from *path*.
+
+        When *path* is omitted it is resolved at call time from the
+        ``TR_CONFIG_PATH`` environment variable, falling back to the container
+        default ``/data/config.yml``. A leading ``~`` is expanded.
+
+        The data root (where ``tr_session_{name}/`` directories live) is the
+        directory that contains the config file, matching the documented
+        ``/data`` layout while remaining relocatable for local development.
 
         Raises:
             ConfigError: if the file is missing or the content is invalid.
         """
-        raw = cls._read_yaml(path)
+        resolved = Path(path or _resolve_config_path()).expanduser().resolve()
+        raw = cls._read_yaml(str(resolved))
         api_key = cls._require_str(raw, "api_key")
         instances = cls._parse_instances(raw)
         tfa_timeout = cls._parse_tfa_timeout(raw)
-        return cls(api_key=api_key, instances=instances, tfa_timeout=tfa_timeout)
+        data_root = str(resolved.parent)
+        return cls(
+            api_key=api_key,
+            instances=instances,
+            tfa_timeout=tfa_timeout,
+            data_root=data_root,
+        )
 
     # ------------------------------------------------------------------
     # Helpers
@@ -74,15 +103,16 @@ class Config:
     def session_dir(self, name: str) -> str:
         """Return the session directory path for a configured instance *name*.
 
-        The data root is always ``/data`` inside the container; callers
-        control the actual location via the Docker volume mount.
+        The data root is the directory containing the config file (``/data``
+        inside the container); operators control its location via the Docker
+        volume mount or, locally, via ``TR_CONFIG_PATH``.
 
         Raises:
             ConfigError: if *name* is not a configured instance.
         """
         if name not in self.instance_names:
             raise ConfigError(f"Unknown instance name: {name!r}")
-        return f"{_DATA_ROOT}/tr_session_{name}"
+        return f"{self.data_root}/tr_session_{name}"
 
     # ------------------------------------------------------------------
     # Private parsing helpers
