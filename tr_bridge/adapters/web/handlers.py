@@ -23,8 +23,11 @@ from tr_bridge.errors import DomainError, ProblemDetail, problem_response
 
 logger = logging.getLogger(__name__)
 
-# Paths that bypass API-key authentication.
-_PUBLIC_PATHS: frozenset[str] = frozenset({"/health"})
+# Paths that bypass API-key authentication: the liveness probe and the public
+# OpenAPI schema / documentation UIs (the schema carries no secrets).
+_PUBLIC_PATHS: frozenset[str] = frozenset(
+    {"/health", "/openapi.json", "/docs", "/redoc"}
+)
 
 
 async def auth_middleware(

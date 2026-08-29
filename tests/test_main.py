@@ -273,6 +273,46 @@ class TestAuthMiddleware:
         assert protected_resp.status_code == 401
 
 
+class TestOpenApiDocs:
+    """The OpenAPI schema and doc UIs are public (no API key required)."""
+
+    def test_openapi_json_is_public_and_lists_all_routes(self) -> None:
+        with patch("tr_bridge.main.Config") as mock_cfg_cls:
+            mock_cfg_cls.load.return_value = MagicMock()
+            with TestClient(app) as client:
+                resp = client.get("/openapi.json")
+
+        assert resp.status_code == 200
+        paths = resp.json()["paths"]
+        for route in (
+            "/health",
+            "/instances",
+            "/instances/{name}/status",
+            "/instances/{name}/login",
+            "/instances/{name}/login/2fa",
+            "/instances/{name}/timeline",
+        ):
+            assert route in paths
+
+    def test_swagger_ui_is_public(self) -> None:
+        with patch("tr_bridge.main.Config") as mock_cfg_cls:
+            mock_cfg_cls.load.return_value = MagicMock()
+            with TestClient(app) as client:
+                resp = client.get("/docs")
+
+        assert resp.status_code == 200
+        assert "text/html" in resp.headers["content-type"]
+
+    def test_redoc_is_public(self) -> None:
+        with patch("tr_bridge.main.Config") as mock_cfg_cls:
+            mock_cfg_cls.load.return_value = MagicMock()
+            with TestClient(app) as client:
+                resp = client.get("/redoc")
+
+        assert resp.status_code == 200
+        assert "text/html" in resp.headers["content-type"]
+
+
 class TestStart:
     def test_start_calls_uvicorn_run(self) -> None:
         with patch("tr_bridge.main.uvicorn.run") as mock_run:

@@ -66,10 +66,11 @@ app = FastAPI(
     version=_read_version(),
     description="Thin HTTP wrapper around pytr for Trade Republic session management.",
     lifespan=_lifespan,
-    # Disable built-in doc UIs — this is an internal API protected by X-API-Key.
-    docs_url=None,
-    redoc_url=None,
-    openapi_url=None,
+    # The schema and doc UIs are public: access control is the X-API-Key header,
+    # not hiding the schema. The API key never appears in the schema.
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json",
 )
 
 register_handlers(app)

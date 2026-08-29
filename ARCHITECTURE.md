@@ -295,6 +295,12 @@ All endpoints except `GET /health` require an `X-API-Key` header validated again
 field in `/data/config.yml`. The bridge is intended for intranet/private deployment; API-key auth is
 sufficient for that threat model and avoids the overhead of OAuth or mTLS.
 
+The OpenAPI schema and the doc UIs (`/openapi.json`, `/docs`, `/redoc`) are intentionally public and
+listed in the middleware's `_PUBLIC_PATHS` alongside `/health`. Hiding the schema would be security
+through obscurity: it adds no real protection because the access control is the `X-API-Key` header on
+the data endpoints, the route list is already public in the docs, and the (configurable) API key
+never appears in the schema. Publishing it gives an always-up-to-date, importable API reference.
+
 ---
 
 ## Error handling
