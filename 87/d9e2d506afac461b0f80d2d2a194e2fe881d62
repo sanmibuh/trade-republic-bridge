@@ -1,0 +1,21 @@
+README.md
+  s_add00e31fbdc31::t_89c269c5b50daf 320-321
+scripts/generate-changelog.sh
+  s_add00e31fbdc31::t_a25531905b9432 10,54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "87d9e2d506afac461b0f80d2d2a194e2fe881d62",
+  "prompts": {},
+  "sessions": {
+    "s_add00e31fbdc31": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fb2f24d94ffefXZTJu5LOpZSqx",
+        "model": "claude-opus-4.8"
+      },
+      "human_author": "David Belmez <sanmibuh@gmail.com>"
+    }
+  }
+}
