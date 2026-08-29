@@ -17,6 +17,7 @@ import sys
 from collections.abc import Callable
 
 from fastapi import FastAPI, Request
+from fastapi.responses import RedirectResponse
 
 from tr_bridge.adapters.web.schemas import (
     DependenciesModel,
@@ -38,6 +39,11 @@ def register_routes(app: FastAPI, *, read_version: Callable[[], str]) -> None:
     ``read_version`` is injected by the composition root so the health route can
     report the running service version without this module owning that concern.
     """
+
+    @app.get("/", include_in_schema=False)
+    async def root() -> RedirectResponse:
+        """Redirect the base URL to the Swagger UI for a friendly landing page."""
+        return RedirectResponse(url="/docs")
 
     @app.get("/health", tags=["ops"])
     async def health() -> HealthResponse:

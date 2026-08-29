@@ -23,12 +23,14 @@ from tr_bridge.errors import DomainError, ProblemDetail, problem_response
 
 logger = logging.getLogger(__name__)
 
-# Paths that bypass API-key authentication: the liveness probe and the public
-# OpenAPI schema / documentation UIs (the schema carries no secrets). The
-# Swagger UI's oauth2-redirect subpath is whitelisted explicitly rather than via
-# a prefix, to avoid accidentally exposing unrelated ``/docs*`` routes.
+# Paths that bypass API-key authentication: the liveness probe, the base URL
+# (which redirects to the docs) and the public OpenAPI schema / documentation
+# UIs (the schema carries no secrets). The Swagger UI's oauth2-redirect subpath
+# is whitelisted explicitly rather than via a prefix, to avoid accidentally
+# exposing unrelated ``/docs*`` routes.
 _PUBLIC_PATHS: frozenset[str] = frozenset(
     {
+        "/",
         "/health",
         "/openapi.json",
         "/docs",

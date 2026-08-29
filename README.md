@@ -57,9 +57,11 @@ TR_CONFIG_PATH=/path/to/config.yml make run
 > `ConfigError`. Create it first (see [Configuration](#configuration)).
 
 Interactive API docs are public: Swagger UI at `/docs`, ReDoc at `/redoc`, and the
-raw schema at `/openapi.json`. They require no API key — access control is the
-`X-API-Key` header on the data endpoints, and the schema contains no secrets. The
-schema is also handy for importing a collection into Postman/Insomnia.
+raw schema at `/openapi.json`. The base URL (`/`) redirects to the Swagger UI, so
+opening `http://127.0.0.1:8000/` lands directly on the docs. They require no API
+key — access control is the `X-API-Key` header on the data endpoints, and the
+schema contains no secrets. The schema is also handy for importing a collection
+into Postman/Insomnia.
 
 ---
 

@@ -292,10 +292,10 @@ Rationale:
 ## Authentication model
 
 All data endpoints require an `X-API-Key` header validated against the `api_key`
-field in `/data/config.yml`. Only the liveness probe (`GET /health`) and the public documentation
-endpoints (`/openapi.json`, `/docs`, `/redoc`) are reachable without it. The bridge is intended for
-intranet/private deployment; API-key auth is sufficient for that threat model and avoids the overhead
-of OAuth or mTLS.
+field in `/data/config.yml`. Only the base URL (`GET /`, which redirects to `/docs`), the liveness
+probe (`GET /health`) and the public documentation endpoints (`/openapi.json`, `/docs`, `/redoc`) are
+reachable without it. The bridge is intended for intranet/private deployment; API-key auth is
+sufficient for that threat model and avoids the overhead of OAuth or mTLS.
 
 The OpenAPI schema and the doc UIs (`/openapi.json`, `/docs`, `/redoc`) are intentionally public and
 listed in the middleware's `_PUBLIC_PATHS` alongside `/health`. Hiding the schema would be security
