@@ -1,0 +1,26 @@
+.gitignore
+  h_35ce34583c4794 32-34
+ARCHITECTURE.md
+  h_35ce34583c4794 110-112,124-126
+Makefile
+  h_35ce34583c4794 4,13,27-30
+README.md
+  h_35ce34583c4794 41-44,47-56,81,84-86
+config.example.yml
+  h_35ce34583c4794 1-11
+tests/test_config.py
+  h_35ce34583c4794 92-93,95-104,363-379
+tr_bridge/config.py
+  h_35ce34583c4794 9,18-32,56,64,71-74,82-88,102-104,111
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "853eb4287c202f93a4f484e6d1d6cd334e576954",
+  "prompts": {},
+  "humans": {
+    "h_35ce34583c4794": {
+      "author": "David Belmez <sanmibuh@gmail.com>"
+    }
+  }
+}
