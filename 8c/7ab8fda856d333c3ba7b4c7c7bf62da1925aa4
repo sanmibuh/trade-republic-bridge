@@ -1,0 +1,14 @@
+AGENTS.md
+  h_35ce34583c4794 107-116
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "8c7ab8fda856d333c3ba7b4c7c7bf62da1925aa4",
+  "prompts": {},
+  "humans": {
+    "h_35ce34583c4794": {
+      "author": "David Belmez <sanmibuh@gmail.com>"
+    }
+  }
+}
