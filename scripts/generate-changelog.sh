@@ -25,22 +25,28 @@ TODAY=$(date -u +%Y-%m-%d)
 
 ITEMS=""
 if git tag --list "v${CURRENT}" | grep -q .; then
-    # Build "* title — [#N](url)" lines from commits since the last tag.
-    while IFS= read -r subject; do
-        [ -z "$subject" ] && continue
-        if echo "$subject" | grep -qE '\(#[0-9]+\)$'; then
-            PR_NUM=$(echo "$subject" | grep -oE '#[0-9]+' | tail -1 | tr -d '#')
-            TITLE=$(echo "$subject" | sed -E 's/ \(#[0-9]+\)$//')
-            ITEMS="${ITEMS}* ${TITLE} — [#${PR_NUM}](${BASE_URL}/pull/${PR_NUM})\n"
-        else
-            ITEMS="${ITEMS}* ${subject}\n"
-        fi
-    done < <(git log "v${CURRENT}..HEAD" --pretty=format:"%s")
+    # Normal case: list commits since the previous release tag.
+    RANGE="v${CURRENT}..HEAD"
     COMPARE="${BASE_URL}/compare/v${CURRENT}...v${NEW}"
 else
-    echo "WARN: tag v${CURRENT} not found — emitting placeholder release notes" >&2
+    # Bootstrap case (no previous tag yet): list the entire history so the very
+    # first release still enumerates every merged PR instead of a placeholder.
+    echo "WARN: tag v${CURRENT} not found — listing full history for the first release" >&2
+    RANGE="HEAD"
     COMPARE="${BASE_URL}/commits/v${NEW}"
 fi
+
+# Build "* title — [#N](url)" lines from the commit subjects in RANGE.
+while IFS= read -r subject; do
+    [ -z "$subject" ] && continue
+    if echo "$subject" | grep -qE '\(#[0-9]+\)$'; then
+        PR_NUM=$(echo "$subject" | grep -oE '#[0-9]+' | tail -1 | tr -d '#')
+        TITLE=$(echo "$subject" | sed -E 's/ \(#[0-9]+\)$//')
+        ITEMS="${ITEMS}* ${TITLE} — [#${PR_NUM}](${BASE_URL}/pull/${PR_NUM})\n"
+    else
+        ITEMS="${ITEMS}* ${subject}\n"
+    fi
+done < <(git log "$RANGE" --pretty=format:"%s")
 
 if [ -z "$ITEMS" ]; then
     ITEMS="<!-- add release notes here -->\n"
