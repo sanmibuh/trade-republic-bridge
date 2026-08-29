@@ -13,6 +13,7 @@ from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI
+from fastapi.openapi.utils import get_openapi
 
 from tr_bridge.adapters.web.handlers import (
     auth_middleware as _auth_middleware,
@@ -66,14 +67,51 @@ app = FastAPI(
     version=_read_version(),
     description="Thin HTTP wrapper around pytr for Trade Republic session management.",
     lifespan=_lifespan,
-    # Disable built-in doc UIs — this is an internal API protected by X-API-Key.
-    docs_url=None,
-    redoc_url=None,
-    openapi_url=None,
+    # The schema and doc UIs are public: access control is the X-API-Key header,
+    # not hiding the schema. The API key never appears in the schema.
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json",
 )
 
 register_handlers(app)
 register_routes(app, read_version=_read_version)
+
+# Paths whose OpenAPI operations opt out of the global API-key requirement,
+# mirroring the auth middleware's public paths that appear in the schema.
+_SCHEMA_PUBLIC_PATHS: frozenset[str] = frozenset({"/health"})
+
+
+def _custom_openapi() -> dict:
+    """Build the OpenAPI schema with an ``X-API-Key`` security scheme.
+
+    The scheme is applied globally so Swagger UI shows an *Authorize* button and
+    forwards the header on *Try it out*; public paths (e.g. ``/health``) opt out
+    via a per-operation empty ``security`` list. The result is memoised on
+    ``app.openapi_schema`` following FastAPI's contract.
+    """
+    if app.openapi_schema is not None:
+        return app.openapi_schema
+
+    schema = get_openapi(
+        title=app.title,
+        version=app.version,
+        description=app.description,
+        routes=app.routes,
+    )
+    schema.setdefault("components", {})["securitySchemes"] = {
+        "ApiKeyAuth": {"type": "apiKey", "in": "header", "name": "X-API-Key"}
+    }
+    schema["security"] = [{"ApiKeyAuth": []}]
+    for path in _SCHEMA_PUBLIC_PATHS:
+        for operation in schema["paths"].get(path, {}).values():
+            operation["security"] = []
+
+    app.openapi_schema = schema
+    return schema
+
+
+app.openapi = _custom_openapi
 
 
 def start() -> None:

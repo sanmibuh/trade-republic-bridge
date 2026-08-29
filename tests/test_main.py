@@ -273,6 +273,96 @@ class TestAuthMiddleware:
         assert protected_resp.status_code == 401
 
 
+class TestOpenApiDocs:
+    """The OpenAPI schema and doc UIs are public (no API key required)."""
+
+    def test_openapi_json_is_public_and_lists_all_routes(self) -> None:
+        with patch("tr_bridge.main.Config") as mock_cfg_cls:
+            mock_cfg_cls.load.return_value = MagicMock()
+            with TestClient(app) as client:
+                resp = client.get("/openapi.json")
+
+        assert resp.status_code == 200
+        paths = resp.json()["paths"]
+        for route in (
+            "/health",
+            "/instances",
+            "/instances/{name}/status",
+            "/instances/{name}/login",
+            "/instances/{name}/login/2fa",
+            "/instances/{name}/timeline",
+        ):
+            assert route in paths
+
+    def test_swagger_ui_is_public(self) -> None:
+        with patch("tr_bridge.main.Config") as mock_cfg_cls:
+            mock_cfg_cls.load.return_value = MagicMock()
+            with TestClient(app) as client:
+                resp = client.get("/docs")
+
+        assert resp.status_code == 200
+        assert "text/html" in resp.headers["content-type"]
+
+    def test_redoc_is_public(self) -> None:
+        with patch("tr_bridge.main.Config") as mock_cfg_cls:
+            mock_cfg_cls.load.return_value = MagicMock()
+            with TestClient(app) as client:
+                resp = client.get("/redoc")
+
+        assert resp.status_code == 200
+        assert "text/html" in resp.headers["content-type"]
+
+    def test_swagger_oauth2_redirect_is_public(self) -> None:
+        """Swagger UI's oauth2-redirect subpath must not require an API key."""
+        with patch("tr_bridge.main.Config") as mock_cfg_cls:
+            mock_cfg_cls.load.return_value = MagicMock()
+            with TestClient(app) as client:
+                resp = client.get("/docs/oauth2-redirect")
+
+        assert resp.status_code == 200
+
+    def test_schema_declares_api_key_security_scheme(self) -> None:
+        """The schema must document the X-API-Key header as an apiKey scheme."""
+        with patch("tr_bridge.main.Config") as mock_cfg_cls:
+            mock_cfg_cls.load.return_value = MagicMock()
+            with TestClient(app) as client:
+                schema = client.get("/openapi.json").json()
+
+        schemes = schema["components"]["securitySchemes"]
+        assert schemes["ApiKeyAuth"] == {
+            "type": "apiKey",
+            "in": "header",
+            "name": "X-API-Key",
+        }
+        assert {"ApiKeyAuth": []} in schema["security"]
+
+    def test_schema_marks_health_as_public(self) -> None:
+        """/health must opt out of the global security requirement."""
+        with patch("tr_bridge.main.Config") as mock_cfg_cls:
+            mock_cfg_cls.load.return_value = MagicMock()
+            with TestClient(app) as client:
+                schema = client.get("/openapi.json").json()
+
+        assert schema["paths"]["/health"]["get"]["security"] == []
+
+    def test_schema_protected_endpoint_has_no_security_override(self) -> None:
+        """Data endpoints inherit the global security (no per-operation opt-out)."""
+        with patch("tr_bridge.main.Config") as mock_cfg_cls:
+            mock_cfg_cls.load.return_value = MagicMock()
+            with TestClient(app) as client:
+                schema = client.get("/openapi.json").json()
+
+        assert "security" not in schema["paths"]["/instances"]["get"]
+
+    def test_openapi_schema_is_cached(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """The custom generator must memoise the schema on app.openapi_schema."""
+        monkeypatch.setattr(app, "openapi_schema", None)
+        first = app.openapi()
+        second = app.openapi()
+
+        assert first is second
+
+
 class TestStart:
     def test_start_calls_uvicorn_run(self) -> None:
         with patch("tr_bridge.main.uvicorn.run") as mock_run:
