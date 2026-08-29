@@ -1,0 +1,30 @@
+# Example docker-compose for tr-bridge.
+#
+# Usage:
+#   1. Create a data directory with your config:
+#        mkdir -p data
+#        cp config.example.yml data/config.yml   # then edit it (api_key, instances)
+#   2. Start the service:
+#        docker compose up -d
+#
+# The service reads /data/config.yml and writes TR session files under
+# /data/tr_session_{name}/. Mount /data to persist sessions across restarts.
+
+services:
+  tr-bridge:
+    image: ghcr.io/sanmibuh/tr-bridge:latest
+    # To build the image locally instead of pulling it, comment out `image:`
+    # above and uncomment the following:
+    # build: .
+    container_name: tr-bridge
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health').status == 200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

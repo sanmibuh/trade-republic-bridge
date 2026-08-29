@@ -35,6 +35,21 @@ automatically under `tr_session_{name}/` subdirectories.
   tr_session_user2/
 ```
 
+### Running with docker-compose
+
+A ready-to-use [`docker-compose.yml`](docker-compose.yml) is provided:
+
+```bash
+mkdir -p data
+cp config.example.yml data/config.yml   # then edit it (api_key, instances)
+docker compose up -d
+```
+
+It mounts `./data` into the container at `/data` and exposes the API on
+`http://127.0.0.1:8000`. To build the image locally instead of pulling it from
+GHCR, comment out the `image:` line and uncomment `build: .` in the compose file.
+
+
 ### Running locally
 
 ```bash
@@ -285,6 +300,44 @@ All errors follow [RFC 9457 Problem Details](https://www.rfc-editor.org/rfc/rfc9
 | 429  | `rate_limited`       | TR login rate-limit hit |
 | 502  | `tr_upstream_error`  | pytr / TR websocket or HTTP failure |
 | 500  | `internal_error`     | Unexpected failure |
+
+---
+
+## Development & releases
+
+### Docker image
+
+The image is published to `ghcr.io/sanmibuh/tr-bridge`. It is a multi-stage,
+non-root build that runs `uvicorn tr_bridge.main:app` on port `8000`. Build it
+locally with:
+
+```bash
+docker build -t tr-bridge .
+```
+
+### CI
+
+Every push and pull request runs [`.github/workflows/ci.yml`](.github/workflows/ci.yml):
+`ruff check`, `ruff format --check`, and `pytest` with 100% coverage enforced.
+
+### Cutting a release
+
+Releases are driven entirely by the `VERSION` file at the repo root:
+
+1. Trigger the **Prepare release PR** workflow
+   ([`.github/workflows/prepare-release.yml`](.github/workflows/prepare-release.yml))
+   from the Actions tab and pick a bump type (`patch` / `minor` / `major`). It
+   bumps `VERSION`, regenerates the `CHANGELOG.md` section from the commits since
+   the last tag, and opens a PR.
+2. Review the generated `CHANGELOG.md` notes and merge the PR.
+3. Merging changes `VERSION` on `main`, which triggers
+   [`.github/workflows/release.yml`](.github/workflows/release.yml): it creates
+   the `vX.Y.Z` git tag and GitHub Release, then builds and pushes the multi-arch
+   image tagged `vX.Y.Z` and `latest` to GHCR.
+
+The **Prepare release PR** workflow requires a `PAT_RELEASE` repository secret (a
+personal access token with `repo` scope) so that the opened PR triggers CI — PRs
+created with the default `GITHUB_TOKEN` do not start workflow runs.
 
 ---
 

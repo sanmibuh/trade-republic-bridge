@@ -322,3 +322,34 @@ generic handler in the web adapter (`adapters/web/handlers.py::domain_error_hand
 error never requires editing the web layer. Only the genuinely distinct cases keep dedicated
 handlers: `HTTPException`, `RequestValidationError`, and the `Exception` catch-all. The session
 domain errors themselves live alongside the state machine's vocabulary in `domain/state.py`.
+
+---
+
+## Packaging and release pipeline
+
+Distribution is **Docker-only**; the service is never published to PyPI. The
+`Dockerfile` is a two-stage build: a `builder` stage installs the pinned runtime
+dependencies (`requirements.txt`) into an isolated `/opt/venv`, and a slim
+`runtime` stage copies only that virtualenv plus the `tr_bridge` package and the
+`VERSION` file. It runs as a non-root `app` user that owns `/data` (the mounted
+volume) and starts `uvicorn tr_bridge.main:app` on `0.0.0.0:8000`. The image is
+published to `ghcr.io/sanmibuh/tr-bridge`.
+
+Three GitHub Actions workflows automate quality and releases:
+
+- **`ci.yml`** — runs on every push and PR: `ruff check`, `ruff format --check`,
+  and `pytest` with 100% coverage enforced. On merge to `main` it also persists
+  coverage stats to a `ci-data` branch and, on PRs, posts a coverage-diff comment.
+- **`prepare-release.yml`** — a manually dispatched workflow that bumps the
+  `VERSION` file (`patch`/`minor`/`major`), regenerates the `CHANGELOG.md`
+  section via `scripts/generate-changelog.sh`, and opens a release PR. It uses a
+  `PAT_RELEASE` token so the PR triggers CI.
+- **`release.yml`** — triggers when `VERSION` changes on `main`. It creates the
+  `vX.Y.Z` tag and GitHub Release (auto-generated notes) and builds/pushes the
+  multi-arch (`linux/amd64,linux/arm64`) image tagged `vX.Y.Z` and `latest`.
+
+The single source of truth for the version is the `VERSION` file, read at runtime
+by `main.py::_read_version()` to populate the OpenAPI/`/health` version. The
+changelog follows [Keep a Changelog](https://keepachangelog.com/); the generator
+script derives entries from commit subjects since the previous tag and is written
+to be portable across BSD and GNU `awk`.
