@@ -178,6 +178,23 @@ class TestCompleteLogin:
         assert order == ["verify", "confirm", "save"]
 
     @pytest.mark.asyncio
+    async def test_missing_confirmation_hook_maps_to_upstream(
+        self, tmp_path: Path
+    ) -> None:
+        # If a pytr upgrade renames/removes the private confirmation hook, fail
+        # with a clear mapped error instead of an unhandled AttributeError.
+        client = _make_client(tmp_path)
+        api = _mock_api()
+        del api._await_weblogin_confirmation
+        with (
+            patch(
+                "tr_bridge.adapters.pytr.pytr_client.TradeRepublicApi", return_value=api
+            ),
+            pytest.raises(TrUpstreamError, match="pytr"),
+        ):
+            await client.complete_login("123456")
+
+    @pytest.mark.asyncio
     async def test_push_does_not_poll_confirmation(self, tmp_path: Path) -> None:
         # The push path already polls internally inside complete_weblogin(); the
         # adapter must not poll again or re-save.

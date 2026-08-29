@@ -82,15 +82,33 @@ class PytrClient:
                 # mirroring pytr's own push flow.
                 #
                 # NOTE: _await_weblogin_confirmation is a private pytr method
-                # with no public equivalent in pytr 0.4.10; a rename upstream
-                # would break this call.
-                await self._run(api._await_weblogin_confirmation)
+                # with no public equivalent in pytr 0.4.10; guard its presence
+                # so a rename in a future pytr surfaces as a clear mapped error
+                # instead of an unhandled AttributeError.
+                await self._confirm_weblogin(api)
                 await self._run(api.save_websession)
         except ValueError as exc:
             logger.warning("Instance %r: 2FA code rejected: %s", self._config.name, exc)
             raise CodeRejectedError(str(exc)) from exc
         except requests.exceptions.RequestException as exc:
             self._raise_upstream(exc)
+
+    _CONFIRM_HOOK = "_await_weblogin_confirmation"
+
+    async def _confirm_weblogin(self, api: TradeRepublicApi) -> None:
+        """Poll pytr's login process to completion after code verification.
+
+        Guards the private pytr hook so that a rename/removal in a future pytr
+        release fails with a clear :class:`TrUpstreamError` (pointing at the
+        expected pytr version) instead of an unhandled ``AttributeError``.
+        """
+        confirm = getattr(api, self._CONFIRM_HOOK, None)
+        if not callable(confirm):
+            raise TrUpstreamError(
+                f"Incompatible pytr version for instance {self._config.name!r}: "
+                f"expected TradeRepublicApi.{self._CONFIRM_HOOK}() (pytr 0.4.10)."
+            )
+        await self._run(confirm)
 
     async def fetch_timeline(self, since: datetime, until: datetime) -> list[dict]:
         api = self._ensure_api()
