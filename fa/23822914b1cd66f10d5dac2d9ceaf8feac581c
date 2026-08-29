@@ -1,0 +1,16 @@
+ARCHITECTURE.md
+  h_35ce34583c4794 353
+docker-compose.yml
+  h_35ce34583c4794 26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "fa23822914b1cd66f10d5dac2d9ceaf8feac581c",
+  "prompts": {},
+  "humans": {
+    "h_35ce34583c4794": {
+      "author": "David Belmez <sanmibuh@gmail.com>"
+    }
+  }
+}
