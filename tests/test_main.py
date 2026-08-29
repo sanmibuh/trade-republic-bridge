@@ -321,6 +321,47 @@ class TestOpenApiDocs:
 
         assert resp.status_code == 200
 
+    def test_schema_declares_api_key_security_scheme(self) -> None:
+        """The schema must document the X-API-Key header as an apiKey scheme."""
+        with patch("tr_bridge.main.Config") as mock_cfg_cls:
+            mock_cfg_cls.load.return_value = MagicMock()
+            with TestClient(app) as client:
+                schema = client.get("/openapi.json").json()
+
+        schemes = schema["components"]["securitySchemes"]
+        assert schemes["ApiKeyAuth"] == {
+            "type": "apiKey",
+            "in": "header",
+            "name": "X-API-Key",
+        }
+        assert {"ApiKeyAuth": []} in schema["security"]
+
+    def test_schema_marks_health_as_public(self) -> None:
+        """/health must opt out of the global security requirement."""
+        with patch("tr_bridge.main.Config") as mock_cfg_cls:
+            mock_cfg_cls.load.return_value = MagicMock()
+            with TestClient(app) as client:
+                schema = client.get("/openapi.json").json()
+
+        assert schema["paths"]["/health"]["get"]["security"] == []
+
+    def test_schema_protected_endpoint_has_no_security_override(self) -> None:
+        """Data endpoints inherit the global security (no per-operation opt-out)."""
+        with patch("tr_bridge.main.Config") as mock_cfg_cls:
+            mock_cfg_cls.load.return_value = MagicMock()
+            with TestClient(app) as client:
+                schema = client.get("/openapi.json").json()
+
+        assert "security" not in schema["paths"]["/instances"]["get"]
+
+    def test_openapi_schema_is_cached(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """The custom generator must memoise the schema on app.openapi_schema."""
+        monkeypatch.setattr(app, "openapi_schema", None)
+        first = app.openapi()
+        second = app.openapi()
+
+        assert first is second
+
 
 class TestStart:
     def test_start_calls_uvicorn_run(self) -> None:
