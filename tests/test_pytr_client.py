@@ -159,6 +159,55 @@ class TestCompleteLogin:
         api.complete_weblogin.assert_called_once_with("123456")
 
     @pytest.mark.asyncio
+    async def test_authenticator_polls_confirmation_and_saves(
+        self, tmp_path: Path
+    ) -> None:
+        # pytr's authenticator path verifies the code but, unlike the push path,
+        # never polls the login process to completion — so the real session
+        # cookies are never issued. The adapter must poll and persist them.
+        client = _make_client(tmp_path)
+        api = _mock_api()
+        order: list[str] = []
+        api.complete_weblogin.side_effect = lambda code: order.append("verify")
+        api._await_weblogin_confirmation.side_effect = lambda: order.append("confirm")
+        api.save_websession.side_effect = lambda: order.append("save")
+        with patch(
+            "tr_bridge.adapters.pytr.pytr_client.TradeRepublicApi", return_value=api
+        ):
+            await client.complete_login("123456")
+        assert order == ["verify", "confirm", "save"]
+
+    @pytest.mark.asyncio
+    async def test_missing_confirmation_hook_maps_to_upstream(
+        self, tmp_path: Path
+    ) -> None:
+        # If a pytr upgrade renames/removes the private confirmation hook, fail
+        # with a clear mapped error instead of an unhandled AttributeError.
+        client = _make_client(tmp_path)
+        api = _mock_api()
+        del api._await_weblogin_confirmation
+        with (
+            patch(
+                "tr_bridge.adapters.pytr.pytr_client.TradeRepublicApi", return_value=api
+            ),
+            pytest.raises(TrUpstreamError, match="pytr"),
+        ):
+            await client.complete_login("123456")
+
+    @pytest.mark.asyncio
+    async def test_push_does_not_poll_confirmation(self, tmp_path: Path) -> None:
+        # The push path already polls internally inside complete_weblogin(); the
+        # adapter must not poll again or re-save.
+        client = _make_client(tmp_path)
+        api = _mock_api()
+        with patch(
+            "tr_bridge.adapters.pytr.pytr_client.TradeRepublicApi", return_value=api
+        ):
+            await client.complete_login()
+        api._await_weblogin_confirmation.assert_not_called()
+        api.save_websession.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_calls_pytr_without_code_for_push(self, tmp_path: Path) -> None:
         client = _make_client(tmp_path)
         api = _mock_api()
