@@ -1,0 +1,19 @@
+.github/workflows/prepare-release.yml
+  s_add00e31fbdc31::t_cd4dfb66fe407c 74
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "0b88796635f618fc8df29ed6982a673708f2de41",
+  "prompts": {},
+  "sessions": {
+    "s_add00e31fbdc31": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fb2f24d94ffefXZTJu5LOpZSqx",
+        "model": "claude-opus-4.8"
+      },
+      "human_author": "David Belmez <sanmibuh@gmail.com>"
+    }
+  }
+}
