@@ -271,34 +271,48 @@ a fresh login. This is the only reliable signal.
 `timelineDetailV2` payloads. The bridge applies no mapping, deduplication, or filtering beyond the
 `[since, until)` time window.
 
-### Typed guaranteed subset
+### Typed guaranteed floor
 
 pytr does **not** define a formal schema for timeline events: they are raw Trade Republic dicts. pytr
-only accesses a handful of fields by direct indexing (`event["id"]`, `event["timestamp"]`,
-`event["title"]`, `event["subtitle"]`) and injects its own `source`
-(`timelineTransaction`/`timelineActivity`). Because a missing one of those keys would crash pytr
-*before* the bridge ever receives the event, that subset is effectively a stable contract.
+does access several fields by direct indexing while fetching/processing the timeline (`event["id"]`,
+`event["timestamp"]`, `event["title"]`, `event["subtitle"]`, and in some versions `event["eventType"]`)
+and injects its own `source` (`timelineTransaction`/`timelineActivity`). A missing one of these can
+raise a `KeyError` inside pytr *before* the bridge ever receives the event — but which keys pytr
+requires is a pytr-version detail, not a contract the bridge controls.
+
+The bridge therefore deliberately **enforces only `id` and `timestamp`** in its own response model:
+they are the event identity and the basis of the `[since, until)` window, and are the minimum a
+consumer can rely on. Every other field pytr happens to require upstream is left optional here, so a
+pytr/Trade-Republic shape change never turns into a `ValidationError`/500 at the bridge's response
+boundary even if pytr's own fetch tightened or loosened.
 
 `TimelineResponse.events` is therefore typed as a list of `TimelineEvent`
-(`adapters/web/schemas.py`), a Pydantic model that declares exactly that guaranteed subset
-(`id`, `timestamp`, `source` as non-null strings; `title`, `subtitle` as nullable strings) and sets
-`model_config = ConfigDict(extra="allow")` so every other upstream attribute — including the raw
-`action` and `details` objects — is forwarded verbatim. This documents the contract in a single place
-(surfacing it in OpenAPI) without mapping or renaming anything: consumers get a typed floor and full
-passthrough for the rest. Declaring the subset is deliberately *not* business logic — it renames
-nothing and transforms nothing; it only names the fields pytr already guarantees.
+(`adapters/web/schemas.py`), a Pydantic model that declares `id`/`timestamp` as the only required,
+non-null strings and sets `model_config = ConfigDict(extra="allow")` so every other upstream
+attribute — including the raw `action` and `details` objects — is forwarded verbatim. This documents
+the contract in a single place (surfacing it in OpenAPI) without mapping or renaming anything:
+consumers get a typed floor and full passthrough for the rest. Declaring the floor is deliberately
+*not* business logic — it renames nothing and transforms nothing; it only documents the minimum
+fields the bridge itself guarantees (`id`, `timestamp`) while passing everything else through
+untouched.
 
 ### Commonly-observed optional fields
 
-Beyond the guaranteed subset, consumers routinely need a few Trade Republic fields that pytr does
-**not** guarantee: the monetary `amount` (`{value, currency}`), the `eventType` category, and the
-`status`. These are declared on `TimelineEvent` as **optional** (`amount: TimelineEventAmount | None`,
-`eventType`/`status` as nullable strings), so they surface in OpenAPI for discoverability while their
-absence never fails validation. The timeline route sets `response_model_exclude_unset=True` so these
-optional fields are emitted only when the upstream event actually carries them — the response stays a
-faithful echo and never injects `null` placeholders for fields TR omitted. This is a documentation
-aid, not a mapping: values are forwarded verbatim, and typing them as required was rejected precisely
-because TR could rename or drop them, which would otherwise 500 the bridge for every consumer.
+Beyond the guaranteed floor, consumers routinely need Trade Republic fields that pytr does **not**
+strictly guarantee at the response boundary: `source`, `title`, `subtitle`, the monetary `amount`
+(`{value, currency}`), the `eventType` category, and the `status`. These are declared on
+`TimelineEvent` as **optional** (nullable with a `None` default; `amount` as
+`TimelineEventAmount | None`), so they surface in OpenAPI for discoverability while their absence
+never fails validation. Making `source`/`title`/`subtitle` optional rather than required keeps the
+endpoint resilient: an edge or newly-shaped upstream event can never turn into a `ValidationError`/500
+at response time. The timeline route sets `response_model_exclude_unset=True` so these optional fields
+are emitted only when the upstream event actually carries them — the response stays a faithful echo
+and never injects `null` placeholders for fields TR omitted.
+
+`TimelineEventAmount.value` is typed as a smart union (`float | int | str | None`) precisely to
+preserve passthrough fidelity: an integer `12` is echoed as `12`, not coerced to `12.0`. Typing these
+fields as required was rejected because TR could rename or drop them, which would otherwise 500 the
+bridge for every consumer. This is a documentation aid, not a mapping: values are forwarded verbatim.
 
 The `[since, until)` window itself is parsed and validated by a dedicated `tr_bridge/timewindow.py`
 module, keeping this domain-ish logic out of the FastAPI entry point. Its public surface is

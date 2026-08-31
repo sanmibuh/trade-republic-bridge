@@ -886,6 +886,81 @@ class TestTimelineEndpoint:
         assert resp.status_code == 200
         assert resp.json()["events"][0] == event
 
+    def test_timeline_preserves_integer_amount_value_without_coercion(
+        self, make_client
+    ) -> None:
+        """An integer amount value is echoed as an int, not coerced to float."""
+        event = {
+            "id": "e6",
+            "timestamp": "2026-08-08T09:00:00.000+0000",
+            "source": "timelineTransaction",
+            "title": "Whole euros",
+            "subtitle": None,
+            "amount": {"value": 12, "currency": "EUR"},
+        }
+        session = _FakeSession(
+            state=SessionState.confirmed,
+            fetch_timeline=AsyncMock(return_value=[event]),
+        )
+        client = make_client(session)
+        resp = client.get(
+            "/instances/user1/timeline",
+            headers={"X-API-Key": "mykey"},
+            params={"since": "2026-08-01T00:00:00Z"},
+        )
+        assert resp.status_code == 200
+        returned = resp.json()["events"][0]["amount"]["value"]
+        assert returned == 12
+        assert isinstance(returned, int)
+
+    def test_timeline_preserves_string_amount_value_without_coercion(
+        self, make_client
+    ) -> None:
+        """A numeric-string amount value stays a string, never parsed to a number."""
+        event = {
+            "id": "e8",
+            "timestamp": "2026-08-10T09:00:00.000+0000",
+            "source": "timelineTransaction",
+            "title": "String amount",
+            "subtitle": None,
+            "amount": {"value": "12.34", "currency": "EUR"},
+        }
+        session = _FakeSession(
+            state=SessionState.confirmed,
+            fetch_timeline=AsyncMock(return_value=[event]),
+        )
+        client = make_client(session)
+        resp = client.get(
+            "/instances/user1/timeline",
+            headers={"X-API-Key": "mykey"},
+            params={"since": "2026-08-01T00:00:00Z"},
+        )
+        assert resp.status_code == 200
+        returned = resp.json()["events"][0]["amount"]["value"]
+        assert returned == "12.34"
+        assert isinstance(returned, str)
+
+    def test_timeline_tolerates_event_missing_source_title_subtitle(
+        self, make_client
+    ) -> None:
+        """A degenerate upstream event without the soft keys must not 500."""
+        event = {
+            "id": "e7",
+            "timestamp": "2026-08-09T09:00:00.000+0000",
+        }
+        session = _FakeSession(
+            state=SessionState.confirmed,
+            fetch_timeline=AsyncMock(return_value=[event]),
+        )
+        client = make_client(session)
+        resp = client.get(
+            "/instances/user1/timeline",
+            headers={"X-API-Key": "mykey"},
+            params={"since": "2026-08-01T00:00:00Z"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["events"][0] == event
+
     def test_timeline_normalizes_non_utc_offset_to_utc(self, make_client) -> None:
         """Non-UTC input offsets are converted to UTC (Z) in the response."""
         session = _FakeSession(
