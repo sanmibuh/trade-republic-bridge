@@ -1,0 +1,16 @@
+ARCHITECTURE.md
+  h_35ce34583c4794 295-297
+README.md
+  h_35ce34583c4794 273-278
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "6565603c8fdb4dd5271610b0afe2f2adc8a0fa57",
+  "prompts": {},
+  "humans": {
+    "h_35ce34583c4794": {
+      "author": "David Belmez <sanmibuh@gmail.com>"
+    }
+  }
+}
