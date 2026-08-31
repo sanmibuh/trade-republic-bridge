@@ -1,0 +1,20 @@
+ARCHITECTURE.md
+  h_35ce34583c4794 274,277,279-281,284-290,294-308
+README.md
+  h_35ce34583c4794 265,273-276,281-283,287-290,298
+tests/test_main.py
+  h_35ce34583c4794 878-925
+tr_bridge/adapters/web/schemas.py
+  h_35ce34583c4794 42-45,50,59-68,71-75,82-84
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "14aac415706fe5a0b5811ca956c967cdd7eaf805",
+  "prompts": {},
+  "humans": {
+    "h_35ce34583c4794": {
+      "author": "David Belmez <sanmibuh@gmail.com>"
+    }
+  }
+}
