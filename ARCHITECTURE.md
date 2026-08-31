@@ -274,11 +274,17 @@ a fresh login. This is the only reliable signal.
 ### Typed guaranteed floor
 
 pytr does **not** define a formal schema for timeline events: they are raw Trade Republic dicts. pytr
-does access a handful of fields by direct indexing (`event["id"]`, `event["timestamp"]`,
-`event["title"]`, `event["subtitle"]`) and injects its own `source`
-(`timelineTransaction`/`timelineActivity`). Of these, only `id` and `timestamp` are treated as a hard
-contract: they are the event identity and the basis of the `[since, until)` window, and a missing one
-would crash pytr *before* the bridge ever receives the event.
+does access several fields by direct indexing while fetching/processing the timeline (`event["id"]`,
+`event["timestamp"]`, `event["title"]`, `event["subtitle"]`, and in some versions `event["eventType"]`)
+and injects its own `source` (`timelineTransaction`/`timelineActivity`). A missing one of these can
+raise a `KeyError` inside pytr *before* the bridge ever receives the event — but which keys pytr
+requires is a pytr-version detail, not a contract the bridge controls.
+
+The bridge therefore deliberately **enforces only `id` and `timestamp`** in its own response model:
+they are the event identity and the basis of the `[since, until)` window, and are the minimum a
+consumer can rely on. Every other field pytr happens to require upstream is left optional here, so a
+pytr/Trade-Republic shape change never turns into a `ValidationError`/500 at the bridge's response
+boundary even if pytr's own fetch tightened or loosened.
 
 `TimelineResponse.events` is therefore typed as a list of `TimelineEvent`
 (`adapters/web/schemas.py`), a Pydantic model that declares `id`/`timestamp` as the only required,
