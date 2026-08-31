@@ -270,10 +270,12 @@ Each event carries a minimal **guaranteed floor**, a set of
 | `id`        | string          | Always present and non-null (pytr uses it as an event key). |
 | `timestamp` | string          | Always present and non-null (ISO-8601, pytr's original format, unmodified). |
 
-These two fields are accessed directly by `pytr` (and `timestamp` drives the
-`[since, until)` window), so a valid event is guaranteed to contain them —
-otherwise pytr would fail before the bridge sees the event. They are the only
-required, non-null keys.
+These two fields are the only keys the bridge itself requires: `id` is the
+event identity and `timestamp` drives the `[since, until)` window. Other keys
+(e.g. `title`/`subtitle`, and in some versions `eventType`) may still be indexed
+by pytr while fetching the timeline, but which ones is a pytr-version detail the
+bridge does not guarantee. `id`/`timestamp` are the only required, non-null keys
+in this response model.
 
 In addition, the following fields come from Trade Republic's payload and are
 frequently needed by consumers. They are **optional**: documented in the schema

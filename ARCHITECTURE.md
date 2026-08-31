@@ -292,8 +292,9 @@ non-null strings and sets `model_config = ConfigDict(extra="allow")` so every ot
 attribute — including the raw `action` and `details` objects — is forwarded verbatim. This documents
 the contract in a single place (surfacing it in OpenAPI) without mapping or renaming anything:
 consumers get a typed floor and full passthrough for the rest. Declaring the floor is deliberately
-*not* business logic — it renames nothing and transforms nothing; it only names the fields pytr
-already guarantees.
+*not* business logic — it renames nothing and transforms nothing; it only documents the minimum
+fields the bridge itself guarantees (`id`, `timestamp`) while passing everything else through
+untouched.
 
 ### Commonly-observed optional fields
 
