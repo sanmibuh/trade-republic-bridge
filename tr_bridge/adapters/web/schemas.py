@@ -39,12 +39,15 @@ class TimelineEventAmount(BaseModel):
 
     ``value``/``currency`` are the fields consumers care about most, but they
     originate from Trade Republic's product surface (not guaranteed by pytr),
-    so both are optional. Any extra keys (e.g. ``fractionDigits``) pass through.
+    so both are optional. ``value`` accepts float/int/string without coercion
+    (a smart union preserves the upstream representation, so an integer stays an
+    integer rather than becoming ``12.0``). Any extra keys (e.g.
+    ``fractionDigits``) pass through.
     """
 
     model_config = ConfigDict(extra="allow")
 
-    value: float | None = None
+    value: float | int | str | None = None
     currency: str | None = None
 
 
@@ -53,28 +56,32 @@ class TimelineEvent(BaseModel):
 
     Two tiers of fields are declared here:
 
-    * The subset that ``pytr`` accesses directly and therefore guarantees to be
-      present — ``id``/``timestamp``/``source`` (non-null, used as dict keys and
-      for ``datetime.fromisoformat``) and ``title``/``subtitle`` (keys always
-      present, value may be ``null``).
-    * Commonly-observed Trade Republic fields consumers rely on — ``amount``,
-      ``eventType`` and ``status``. These come from TR's upstream payload and
-      are **not** guaranteed by pytr, so they are optional: documenting them in
-      the schema aids discovery, while their absence never breaks validation.
+    * A minimal guaranteed floor — ``id``/``timestamp`` — which pytr accesses by
+      direct indexing (and ``timestamp`` feeds the ``[since, until)`` window), so
+      a valid event must carry them or pytr would crash before the bridge sees
+      it. These are the only required, non-null keys.
+    * Commonly-observed fields consumers rely on — ``source``, ``title``,
+      ``subtitle``, ``amount``, ``eventType`` and ``status``. pytr usually
+      populates ``source``/``title``/``subtitle``, but to keep the endpoint
+      resilient against upstream shape drift they are declared **optional** so a
+      degenerate event never turns into a 500 at response time. They remain
+      documented in the schema for discoverability.
 
     Everything else — nested ``action``/``details`` payloads and any other
-    upstream attribute — is forwarded verbatim via ``extra="allow"``. Typing
-    this contract in a single place spares every downstream consumer from
-    guessing it.
+    upstream attribute — is forwarded verbatim via ``extra="allow"``. Combined
+    with ``response_model_exclude_unset=True`` on the route, absent optional
+    fields are omitted rather than emitted as ``null``, so the response stays a
+    faithful echo. Typing this contract in a single place spares every
+    downstream consumer from guessing it.
     """
 
     model_config = ConfigDict(extra="allow")
 
     id: str
     timestamp: str
-    source: str
-    title: str | None
-    subtitle: str | None
+    source: str | None = None
+    title: str | None = None
+    subtitle: str | None = None
     amount: TimelineEventAmount | None = None
     eventType: str | None = None
     status: str | None = None

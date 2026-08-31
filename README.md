@@ -262,30 +262,32 @@ Fetch raw pytr timeline events in the half-open interval `[since, until)`.
 }
 ```
 
-Each event carries a small **guaranteed subset** of fields, a set of
+Each event carries a minimal **guaranteed floor**, a set of
 **commonly-observed optional fields**, and an upstream-dependent remainder:
 
 | Field       | Type            | Guarantee |
 |-------------|-----------------|-----------|
 | `id`        | string          | Always present and non-null (pytr uses it as an event key). |
 | `timestamp` | string          | Always present and non-null (ISO-8601, pytr's original format, unmodified). |
-| `source`    | string          | Always present; added by pytr — `timelineTransaction` or `timelineActivity`. |
-| `title`     | string \| null  | Key always present; value may be `null`. |
-| `subtitle`  | string \| null  | Key always present; value may be `null`. |
 
-These five fields are the ones `pytr` itself accesses directly, so a valid
-event is guaranteed to contain them (otherwise pytr would fail before the
-bridge sees the event). Typing them here means consumers do not have to
-re-derive the contract themselves.
+These two fields are accessed directly by `pytr` (and `timestamp` drives the
+`[since, until)` window), so a valid event is guaranteed to contain them —
+otherwise pytr would fail before the bridge sees the event. They are the only
+required, non-null keys.
 
 In addition, the following fields come from Trade Republic's payload and are
 frequently needed by consumers. They are **optional**: documented in the schema
 for discoverability, but their absence never fails validation, and they are
-omitted from the response when the upstream event does not include them.
+omitted from the response when the upstream event does not include them. This
+keeps the endpoint resilient against upstream shape drift instead of returning a
+500 at response time.
 
 | Field       | Type                         | Notes |
 |-------------|------------------------------|-------|
-| `amount`    | object \| null               | `{ "value": number \| null, "currency": string \| null }`; extra keys (e.g. `fractionDigits`) pass through. |
+| `source`    | string \| null               | Added by pytr — typically `timelineTransaction` or `timelineActivity`. |
+| `title`     | string \| null               | Short description; value may be `null`. |
+| `subtitle`  | string \| null               | Notes/secondary description; value may be `null`. |
+| `amount`    | object \| null               | `{ "value": number \| string \| null, "currency": string \| null }`; `value` keeps its upstream type (an integer stays an integer — no coercion); extra keys (e.g. `fractionDigits`) pass through. |
 | `eventType` | string \| null               | TR event category, e.g. `CARD_TRANSACTION`, `BANK_TRANSACTION_INCOMING`. |
 | `status`    | string \| null               | TR execution status, e.g. `EXECUTED`, `CANCELED`. |
 
@@ -293,7 +295,7 @@ omitted from the response when the upstream event does not include them.
 bridge** — notably the nested `action` and `details` (raw `timelineDetailV2`)
 objects, plus any other attribute Trade Republic adds. Its shape mirrors pytr
 output and evolves with the TR app; consumers must tolerate unknown keys and
-must not rely on any field outside the guaranteed subset above.
+must not rely on any field outside the guaranteed floor above.
 
 The echoed `since`/`until` are normalised to UTC and rendered with a `Z` suffix regardless of the
 offset supplied in the request. Raw event fields keep pytr's original values unchanged.
