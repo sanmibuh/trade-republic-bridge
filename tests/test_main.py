@@ -742,7 +742,15 @@ class TestLogin2faEndpoint:
 
 class TestTimelineEndpoint:
     _EVENTS: ClassVar[list[dict]] = [
-        {"id": "e1", "timestamp": "2026-08-03T10:12:04.000+0000"}
+        {
+            "id": "e1",
+            "timestamp": "2026-08-03T10:12:04.000+0000",
+            "source": "timelineTransaction",
+            "title": "Supermarket XY",
+            "subtitle": "Karte",
+            "action": {"type": "timelineDetail", "payload": "e1"},
+            "details": {"sections": ["...raw timelineDetailV2 payload..."]},
+        }
     ]
 
     def test_timeline_happy_path(self, make_client) -> None:
@@ -764,6 +772,119 @@ class TestTimelineEndpoint:
         assert body["count"] == 1
         assert body["events"] == self._EVENTS
         session.fetch_timeline.assert_awaited_once()
+
+    def test_timeline_preserves_unknown_upstream_fields(self, make_client) -> None:
+        """Fields outside the guaranteed subset pass through unchanged."""
+        event = {
+            "id": "e2",
+            "timestamp": "2026-08-04T09:00:00.000+0000",
+            "source": "timelineActivity",
+            "title": "Sparplan",
+            "subtitle": "Ausgeführt",
+            "eventType": "SAVINGS_PLAN_EXECUTED",
+            "amount": {"value": -50.0, "currency": "EUR"},
+        }
+        session = _FakeSession(
+            state=SessionState.confirmed,
+            fetch_timeline=AsyncMock(return_value=[event]),
+        )
+        client = make_client(session)
+        resp = client.get(
+            "/instances/user1/timeline",
+            headers={"X-API-Key": "mykey"},
+            params={"since": "2026-08-01T00:00:00Z"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["events"][0] == event
+
+    def test_timeline_accepts_null_title_and_subtitle(self, make_client) -> None:
+        """Guaranteed keys may carry null values without failing validation."""
+        event = {
+            "id": "e3",
+            "timestamp": "2026-08-05T09:00:00.000+0000",
+            "source": "timelineTransaction",
+            "title": None,
+            "subtitle": None,
+        }
+        session = _FakeSession(
+            state=SessionState.confirmed,
+            fetch_timeline=AsyncMock(return_value=[event]),
+        )
+        client = make_client(session)
+        resp = client.get(
+            "/instances/user1/timeline",
+            headers={"X-API-Key": "mykey"},
+            params={"since": "2026-08-01T00:00:00Z"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["events"][0] == event
+
+    def test_timeline_documents_optional_key_fields_in_openapi(
+        self, make_client
+    ) -> None:
+        """Commonly-observed fields are advertised as optional in the schema."""
+        session = _FakeSession(state=SessionState.confirmed)
+        client = make_client(session)
+        schema = client.get("/openapi.json").json()
+        props = schema["components"]["schemas"]["TimelineEvent"]["properties"]
+        assert "amount" in props
+        assert "eventType" in props
+        assert "status" in props
+        required = schema["components"]["schemas"]["TimelineEvent"].get("required", [])
+        assert "amount" not in required
+        assert "eventType" not in required
+        assert "status" not in required
+
+    def test_timeline_omitting_optional_fields_does_not_break(
+        self, make_client
+    ) -> None:
+        """An event lacking amount/eventType/status validates fine."""
+        event = {
+            "id": "e4",
+            "timestamp": "2026-08-06T09:00:00.000+0000",
+            "source": "timelineTransaction",
+            "title": "No amount here",
+            "subtitle": None,
+        }
+        session = _FakeSession(
+            state=SessionState.confirmed,
+            fetch_timeline=AsyncMock(return_value=[event]),
+        )
+        client = make_client(session)
+        resp = client.get(
+            "/instances/user1/timeline",
+            headers={"X-API-Key": "mykey"},
+            params={"since": "2026-08-01T00:00:00Z"},
+        )
+        assert resp.status_code == 200
+        returned = resp.json()["events"][0]
+        assert returned == event
+        assert "amount" not in returned
+
+    def test_timeline_preserves_amount_value_and_currency(self, make_client) -> None:
+        """When present, amount is returned with its value and currency intact."""
+        event = {
+            "id": "e5",
+            "timestamp": "2026-08-07T09:00:00.000+0000",
+            "source": "timelineTransaction",
+            "title": "Payment",
+            "subtitle": None,
+            "eventType": "BANK_TRANSACTION_OUTGOING",
+            "status": "EXECUTED",
+            "amount": {"value": -12.34, "currency": "EUR", "fractionDigits": 2},
+        }
+        session = _FakeSession(
+            state=SessionState.confirmed,
+            fetch_timeline=AsyncMock(return_value=[event]),
+        )
+        client = make_client(session)
+        resp = client.get(
+            "/instances/user1/timeline",
+            headers={"X-API-Key": "mykey"},
+            params={"since": "2026-08-01T00:00:00Z"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["events"][0] == event
 
     def test_timeline_normalizes_non_utc_offset_to_utc(self, make_client) -> None:
         """Non-UTC input offsets are converted to UTC (Z) in the response."""

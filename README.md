@@ -247,22 +247,56 @@ Fetch raw pytr timeline events in the half-open interval `[since, until)`.
   "count": 1,
   "events": [
     {
-      "eventType": "CARD_TRANSACTION",
+      "id": "a1b2c3d4-...",
       "timestamp": "2026-08-03T10:12:04.000+0000",
+      "source": "timelineTransaction",
       "title": "Supermarket XY",
-      "amount": { "value": -23.5, "currency": "EUR" },
+      "subtitle": "Karte",
+      "eventType": "CARD_TRANSACTION",
       "status": "EXECUTED",
+      "amount": { "value": -12.34, "currency": "EUR" },
+      "action": { "type": "timelineDetail", "payload": "a1b2c3d4-..." },
       "details": { "sections": [ "...raw timelineDetailV2 payload, unchanged..." ] }
     }
   ]
 }
 ```
 
-`events` are raw pytr dicts. Their shape mirrors pytr output and is **not** guaranteed by the bridge;
-consumers must tolerate unknown keys.
+Each event carries a small **guaranteed subset** of fields, a set of
+**commonly-observed optional fields**, and an upstream-dependent remainder:
+
+| Field       | Type            | Guarantee |
+|-------------|-----------------|-----------|
+| `id`        | string          | Always present and non-null (pytr uses it as an event key). |
+| `timestamp` | string          | Always present and non-null (ISO-8601, pytr's original format, unmodified). |
+| `source`    | string          | Always present; added by pytr — `timelineTransaction` or `timelineActivity`. |
+| `title`     | string \| null  | Key always present; value may be `null`. |
+| `subtitle`  | string \| null  | Key always present; value may be `null`. |
+
+These five fields are the ones `pytr` itself accesses directly, so a valid
+event is guaranteed to contain them (otherwise pytr would fail before the
+bridge sees the event). Typing them here means consumers do not have to
+re-derive the contract themselves.
+
+In addition, the following fields come from Trade Republic's payload and are
+frequently needed by consumers. They are **optional**: documented in the schema
+for discoverability, but their absence never fails validation, and they are
+omitted from the response when the upstream event does not include them.
+
+| Field       | Type                         | Notes |
+|-------------|------------------------------|-------|
+| `amount`    | object \| null               | `{ "value": number \| null, "currency": string \| null }`; extra keys (e.g. `fractionDigits`) pass through. |
+| `eventType` | string \| null               | TR event category, e.g. `CARD_TRANSACTION`, `BANK_TRANSACTION_INCOMING`. |
+| `status`    | string \| null               | TR execution status, e.g. `EXECUTED`, `CANCELED`. |
+
+**Everything else is passed through unchanged and is _not_ guaranteed by the
+bridge** — notably the nested `action` and `details` (raw `timelineDetailV2`)
+objects, plus any other attribute Trade Republic adds. Its shape mirrors pytr
+output and evolves with the TR app; consumers must tolerate unknown keys and
+must not rely on any field outside the guaranteed subset above.
 
 The echoed `since`/`until` are normalised to UTC and rendered with a `Z` suffix regardless of the
-offset supplied in the request. Raw `events` keep pytr's original timestamp format unchanged.
+offset supplied in the request. Raw event fields keep pytr's original values unchanged.
 
 | Problem code     | HTTP | When |
 |------------------|------|------|

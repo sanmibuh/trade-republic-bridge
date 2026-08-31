@@ -93,7 +93,11 @@ def register_routes(app: FastAPI, *, read_version: Callable[[], str]) -> None:
         await session.submit_2fa(body.code)
         return LoginStateResponse(state=session.state)
 
-    @app.get("/instances/{name}/timeline", tags=["instances"])
+    @app.get(
+        "/instances/{name}/timeline",
+        tags=["instances"],
+        response_model_exclude_unset=True,
+    )
     async def get_instance_timeline(
         name: str,
         request: Request,
