@@ -1,0 +1,19 @@
+tests/test_main.py
+  s_10bf5a135b9d78::t_d352d66e5615ba 745-753,776-888
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "242b1b201f7e424b1f53bc94defd2c0b38f8749a",
+  "prompts": {},
+  "sessions": {
+    "s_10bf5a135b9d78": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fb13357c6ffe9QgqFlyXMrkYlt",
+        "model": "claude-opus-4.8"
+      },
+      "human_author": "David Belmez <sanmibuh@gmail.com>"
+    }
+  }
+}
